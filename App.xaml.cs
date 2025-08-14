@@ -8,7 +8,7 @@ namespace clipdump_re;
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>
-public partial class App : Application
+public partial class App : System.Windows.Application
 {
     private SingleInstanceService? _singleInstanceService;
 
@@ -18,7 +18,7 @@ public partial class App : Application
 
         if (!_singleInstanceService.IsFirstInstance())
         {
-            MessageBox.Show("ClipDump-Re is already running.", "Application Already Running", 
+            System.Windows.MessageBox.Show("ClipDump-Re is already running.", "Application Already Running", 
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;

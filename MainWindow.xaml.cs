@@ -10,6 +10,9 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using ClipDumpRe.Services;
 using ClipDumpRe.Models;
+using System.ComponentModel;
+using System.Drawing;
+using WinForms = System.Windows.Forms;
 
 namespace clipdump_re;
 
@@ -21,6 +24,7 @@ public partial class MainWindow : Window
     private readonly ConfigurationService _configurationService;
     private readonly LoggingService _loggingService;
     private Settings _settings;
+    private NotifyIcon _notifyIcon;
 
     public MainWindow()
     {
@@ -31,6 +35,7 @@ public partial class MainWindow : Window
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
         LoadSettings();
         AttachEventHandlers();
+        InitializeTrayIcon();
     }
 
     private async void LoadSettings()
@@ -59,7 +64,7 @@ public partial class MainWindow : Window
     {
         if (_settings == null) return;
 
-        var control = sender as Control;
+        var control = sender as System.Windows.Controls.Control;
         var oldWorkingDir = _settings.WorkingDirectory;
         var oldMaxSize = _settings.MaxFileSizeKB;
 
@@ -90,5 +95,101 @@ public partial class MainWindow : Window
         
         _loggingService.LogEvent("DataGridCellEdited", $"Format rule edited in column '{columnHeader}'", 
             $"Format: {item?.Format ?? "Unknown"}");
+    }
+
+    private void InitializeTrayIcon()
+    {
+        _notifyIcon = new NotifyIcon();
+        
+        // Extract icon from current application or use embedded resource
+        try
+        {
+            var iconUri = new Uri("pack://application:,,,/Resources/Icon/clipdump.ico", UriKind.Absolute);
+            var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
+            if (streamInfo != null)
+            {
+                _notifyIcon.Icon = new Icon(streamInfo.Stream);
+            }
+            else
+            {
+                // Fallback to system icon
+                _notifyIcon.Icon = SystemIcons.Application;
+            }
+        }
+        catch
+        {
+            _notifyIcon.Icon = SystemIcons.Application;
+        }
+        
+        _notifyIcon.Text = "ClipDump-Re";
+        _notifyIcon.Visible = true;
+        
+        // Create context menu
+        var contextMenu = new ContextMenuStrip();
+        var exitMenuItem = new ToolStripMenuItem("Exit");
+        exitMenuItem.Click += (s, e) => ExitApplication();
+        contextMenu.Items.Add(exitMenuItem);
+        _notifyIcon.ContextMenuStrip = contextMenu;
+        
+        // Handle mouse clicks
+        _notifyIcon.MouseClick += NotifyIcon_MouseClick;
+        _notifyIcon.MouseDoubleClick += NotifyIcon_MouseDoubleClick;
+        
+        _loggingService.LogEvent("TrayIconInitialized", "System tray icon created", "");
+    }
+
+    private void NotifyIcon_MouseClick(object sender, WinForms.MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+        {
+            Dispatcher.Invoke(ToggleWindowVisibility);
+        }
+    }
+
+    private void NotifyIcon_MouseDoubleClick(object sender, WinForms.MouseEventArgs e)
+    {
+        if (e.Button == MouseButtons.Left)
+        {
+            Dispatcher.Invoke(ToggleWindowVisibility);
+        }
+    }
+
+    private void ExitApplication()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            _loggingService.LogEvent("ApplicationExit", "User requested exit from tray menu", "");
+            _notifyIcon?.Dispose();
+            System.Windows.Application.Current.Shutdown();
+        });
+    }
+
+    private void ToggleWindowVisibility()
+    {
+        if (WindowState == WindowState.Minimized || !IsVisible)
+        {
+            Show();
+            WindowState = WindowState.Normal;
+            Activate();
+            _loggingService.LogEvent("WindowRestored", "Window restored from tray", "");
+        }
+        else
+        {
+            Hide();
+            _loggingService.LogEvent("WindowHidden", "Window hidden to tray", "");
+        }
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        e.Cancel = true;
+        Hide();
+        _loggingService.LogEvent("WindowClosing", "Window close intercepted, minimized to tray", "");
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _notifyIcon?.Dispose();
+        base.OnClosed(e);
     }
 }
