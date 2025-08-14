@@ -35,7 +35,7 @@
         </Grid>
         
         <!-- DataGrid Row -->
-        <DataGrid Grid.Row="2" Name="FormatDataGrid" Margin="10" AutoGenerateColumns="False" CanUserAddRows="True">
+        <DataGrid Grid.Row="2" Name="FormatDataGrid" Margin="10" AutoGenerateColumns="False" CanUserAddRows="True" CanUserSortColumns="False">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="*"/>
                 <DataGridTextColumn Header="Max Size (KB)" Binding="{Binding MaxSizeKB}" Width="*"/>
