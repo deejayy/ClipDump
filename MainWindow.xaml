@@ -1,0 +1,53 @@
+﻿<Window x:Class="clipdump_re.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:clipdump_re"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="450" Width="800">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- Working Directory Row -->
+        <Grid Grid.Row="0" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Label Grid.Column="0" Content="Working directory:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <TextBox Grid.Column="1" Name="WorkingDirectoryTextBox" VerticalAlignment="Center"/>
+        </Grid>
+        
+        <!-- Max File Size Row -->
+        <Grid Grid.Row="1" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Label Grid.Column="0" Content="Max File Size (KB):" VerticalAlignment="Center" Margin="0,0,10,0"/>
+            <TextBox Grid.Column="1" Name="MaxFileSizeTextBox" VerticalAlignment="Center"/>
+        </Grid>
+        
+        <!-- DataGrid Row -->
+        <DataGrid Grid.Row="2" Name="FormatDataGrid" Margin="10" AutoGenerateColumns="False" CanUserAddRows="True">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="*"/>
+                <DataGridTextColumn Header="Max Size (KB)" Binding="{Binding MaxSize}" Width="*"/>
+                <DataGridCheckBoxColumn Header="Ignored" Binding="{Binding Ignored}" Width="Auto"/>
+                <DataGridTextColumn Header="Directory" Binding="{Binding Directory}" Width="*"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Buttons Row -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="10" HorizontalAlignment="Left">
+            <Button Name="AddNewRuleButton" Content="Add New Rule" Margin="0,0,10,0" Padding="10,5"/>
+            <Button Name="RemoveRuleButton" Content="Remove Rule" Padding="10,5"/>
+        </StackPanel>
+    </Grid>
+</Window>
