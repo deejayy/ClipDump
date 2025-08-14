@@ -38,9 +38,9 @@
         <DataGrid Grid.Row="2" Name="FormatDataGrid" Margin="10" AutoGenerateColumns="False" CanUserAddRows="True">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="*"/>
-                <DataGridTextColumn Header="Max Size (KB)" Binding="{Binding MaxSize}" Width="*"/>
-                <DataGridCheckBoxColumn Header="Ignored" Binding="{Binding Ignored}" Width="Auto"/>
-                <DataGridTextColumn Header="Directory" Binding="{Binding Directory}" Width="*"/>
+                <DataGridTextColumn Header="Max Size (KB)" Binding="{Binding MaxSizeKB}" Width="*"/>
+                <DataGridCheckBoxColumn Header="Ignored" Binding="{Binding ShouldIgnore}" Width="Auto"/>
+                <DataGridTextColumn Header="Directory" Binding="{Binding RelativeDestinationDirectory}" Width="*"/>
             </DataGrid.Columns>
         </DataGrid>
 
