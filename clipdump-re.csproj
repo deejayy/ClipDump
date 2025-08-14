@@ -9,4 +9,8 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Resource Include="Resources\Icon\clipdump.png" />
+  </ItemGroup>
+
 </Project>
