@@ -10,6 +10,7 @@ namespace ClipDumpRe.Services
         private const string ConfigFileName = "clipdump-re.json";
         private readonly string _configFilePath;
         private readonly JsonSerializerOptions _jsonOptions;
+        private readonly LoggingService _loggingService;
 
         public ConfigurationService()
         {
@@ -19,12 +20,14 @@ namespace ClipDumpRe.Services
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
+            _loggingService = new LoggingService();
         }
 
         public async Task<Settings> LoadSettingsAsync()
         {
             if (!File.Exists(_configFilePath))
             {
+                await _loggingService.LogEventAsync("ConfigurationFileNotFound", "Configuration file does not exist, creating default settings", _configFilePath);
                 var defaultSettings = new Settings();
                 await SaveSettingsAsync(defaultSettings);
                 return defaultSettings;
@@ -33,11 +36,13 @@ namespace ClipDumpRe.Services
             try
             {
                 var json = await File.ReadAllTextAsync(_configFilePath);
-                return JsonSerializer.Deserialize<Settings>(json, _jsonOptions) ?? new Settings();
+                var settings = JsonSerializer.Deserialize<Settings>(json, _jsonOptions) ?? new Settings();
+                await _loggingService.LogEventAsync("ConfigurationLoaded", "Settings loaded successfully", $"FormatRules count: {settings.FormatRules.Count}");
+                return settings;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // If deserialization fails, return default settings
+                await _loggingService.LogEventAsync("ConfigurationLoadFailed", "Failed to load settings, returning defaults", ex.Message);
                 return new Settings();
             }
         }
@@ -48,10 +53,11 @@ namespace ClipDumpRe.Services
             {
                 var json = JsonSerializer.Serialize(settings, _jsonOptions);
                 await File.WriteAllTextAsync(_configFilePath, json);
+                await _loggingService.LogEventAsync("ConfigurationSaved", "Settings saved successfully", $"WorkingDirectory: {settings.WorkingDirectory}, MaxFileSizeKB: {settings.MaxFileSizeKB}");
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Handle save errors silently or log as needed
+                await _loggingService.LogEventAsync("ConfigurationSaveFailed", "Failed to save settings", ex.Message);
             }
         }
 
