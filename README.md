@@ -1,5 +1,7 @@
 # ClipDump - A clipboard dumper for Windows built on .NET SDK 9
 
+<center><img width="709" height="412" alt="2025-08-14_22-17-26-138_System Drawing Bitmap" src="https://github.com/user-attachments/assets/1b432e63-9b79-4328-ba6f-8bfe05bf0a8b" /></center>
+
 ClipDump-Re is a background clipboard monitoring application that automatically saves clipboard content to disk whenever you copy something. It runs minimized in the system tray and intelligently handles various data formats including text, images, HTML, and files. The application features configurable format rules, size limits, and destination directories, allowing you to customize which clipboard formats to capture and where to store them. Perfect for keeping a persistent record of your clipboard history or backing up important copied content.
 
 # Features
@@ -16,3 +18,4 @@ ClipDump-Re is a background clipboard monitoring application that automatically 
 - **Comprehensive logging** - Detailed event logging for monitoring and troubleshooting
 - **WPF configuration UI** - Easy-to-use interface for managing settings and format rules
 - **Persistent settings** - Configuration saved to JSON file and automatically loaded on startup
+
