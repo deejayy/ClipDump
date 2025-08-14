@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace ClipDumpRe.Services
 {
-    internal class LoggingService
+    public class LoggingService
     {
         private const string LogFileName = "clipdump-re.log";
         private readonly string _logFilePath;

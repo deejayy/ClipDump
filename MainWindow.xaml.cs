@@ -11,8 +11,6 @@ using System.Windows.Shapes;
 using ClipDumpRe.Services;
 using ClipDumpRe.Models;
 using System.ComponentModel;
-using System.Drawing;
-using WinForms = System.Windows.Forms;
 using System.Windows.Interop;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
@@ -27,8 +25,8 @@ public partial class MainWindow : Window
     private readonly ConfigurationService _configurationService;
     private readonly LoggingService _loggingService;
     private ClipboardService _clipboardService;
+    private TrayIconService _trayIconService;
     private Settings _settings;
-    private NotifyIcon _notifyIcon;
     private HwndSource _hwndSource;
 
     // P/Invoke declarations for clipboard monitoring
@@ -163,106 +161,7 @@ public partial class MainWindow : Window
 
     private void InitializeTrayIcon()
     {
-        _notifyIcon = new NotifyIcon();
-        
-        // Extract icon from current application or use embedded resource
-        try
-        {
-            var iconUri = new Uri("pack://application:,,,/Resources/Icon/clipdump.ico", UriKind.Absolute);
-            var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
-            if (streamInfo != null)
-            {
-                _notifyIcon.Icon = new Icon(streamInfo.Stream);
-            }
-            else
-            {
-                // Fallback to system icon
-                _notifyIcon.Icon = SystemIcons.Application;
-            }
-        }
-        catch
-        {
-            _notifyIcon.Icon = SystemIcons.Application;
-        }
-        
-        _notifyIcon.Text = "ClipDump-Re";
-        _notifyIcon.Visible = true;
-        
-        // Create context menu
-        var contextMenu = new ContextMenuStrip();
-        var exitMenuItem = new ToolStripMenuItem("Exit");
-        exitMenuItem.Click += (s, e) => ExitApplication();
-        contextMenu.Items.Add(exitMenuItem);
-        _notifyIcon.ContextMenuStrip = contextMenu;
-        
-        // Handle mouse clicks
-        _notifyIcon.MouseClick += NotifyIcon_MouseClick;
-        _notifyIcon.MouseDoubleClick += NotifyIcon_MouseDoubleClick;
-        
-        _loggingService.LogEvent("TrayIconInitialized", "System tray icon created", "");
-    }
-
-    private void NotifyIcon_MouseClick(object sender, WinForms.MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Left)
-        {
-            Dispatcher.Invoke(ToggleWindowVisibility);
-        }
-    }
-
-    private void NotifyIcon_MouseDoubleClick(object sender, WinForms.MouseEventArgs e)
-    {
-        if (e.Button == MouseButtons.Left)
-        {
-            Dispatcher.Invoke(ToggleWindowVisibility);
-        }
-    }
-
-    private void ExitApplication()
-    {
-        Dispatcher.Invoke(() =>
-        {
-            _loggingService.LogEvent("ApplicationExit", "User requested exit from tray menu", "");
-            _notifyIcon?.Dispose();
-            System.Windows.Application.Current.Shutdown();
-        });
-    }
-
-    private void ToggleWindowVisibility()
-    {
-        if (WindowState == WindowState.Minimized || !IsVisible)
-        {
-            Show();
-            WindowState = WindowState.Normal;
-            Activate();
-            _loggingService.LogEvent("WindowRestored", "Window restored from tray", "");
-        }
-        else
-        {
-            Hide();
-            _loggingService.LogEvent("WindowHidden", "Window hidden to tray", "");
-        }
-    }
-
-    protected override void OnClosing(CancelEventArgs e)
-    {
-        e.Cancel = true;
-        Hide();
-        _loggingService.LogEvent("WindowClosing", "Window close intercepted, minimized to tray", "");
-    }
-
-    protected override void OnClosed(EventArgs e)
-    {
-        // Remove clipboard listener
-        if (_hwndSource != null)
-        {
-            RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
-            _hwndSource.RemoveHook(WndProc);
-            _loggingService.LogEvent("ClipboardListenerRemoved", "Clipboard format listener removed", "");
-        }
-        
-        _notifyIcon?.Dispose();
-        base.OnClosed(e);
+        _trayIconService = new TrayIconService(this, _loggingService);
     }
 
     private async void AddNewRuleButton_Click(object sender, RoutedEventArgs e)
@@ -301,5 +200,26 @@ public partial class MainWindow : Window
             
             _loggingService.LogEvent("FormatRuleRemoved", "Format rule removed", $"Format: {selectedRule.Format}");
         }
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        e.Cancel = true;
+        Hide();
+        _loggingService.LogEvent("WindowClosing", "Window close intercepted, minimized to tray", "");
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        // Remove clipboard listener
+        if (_hwndSource != null)
+        {
+            RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
+            _hwndSource.RemoveHook(WndProc);
+            _loggingService.LogEvent("ClipboardListenerRemoved", "Clipboard format listener removed", "");
+        }
+        
+        _trayIconService?.Dispose();
+        base.OnClosed(e);
     }
 }
