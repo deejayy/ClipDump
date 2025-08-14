@@ -26,6 +26,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         _configurationService = new ConfigurationService();
         LoadSettings();
+        AttachEventHandlers();
     }
 
     private async void LoadSettings()
@@ -36,5 +37,36 @@ public partial class MainWindow : Window
         WorkingDirectoryTextBox.Text = _settings.WorkingDirectory;
         MaxFileSizeTextBox.Text = _settings.MaxFileSizeKB.ToString();
         FormatDataGrid.ItemsSource = _settings.FormatRules;
+    }
+
+    private void AttachEventHandlers()
+    {
+        WorkingDirectoryTextBox.TextChanged += OnSettingsChanged;
+        MaxFileSizeTextBox.TextChanged += OnSettingsChanged;
+        FormatDataGrid.CellEditEnding += OnDataGridCellEditEnding;
+    }
+
+    private async void OnSettingsChanged(object sender, EventArgs e)
+    {
+        if (_settings == null) return;
+
+        // Update settings from UI controls
+        _settings.WorkingDirectory = WorkingDirectoryTextBox.Text;
+        
+        if (int.TryParse(MaxFileSizeTextBox.Text, out int maxSizeKB))
+        {
+            _settings.MaxFileSizeKB = maxSizeKB;
+        }
+
+        await _configurationService.SaveSettingsAsync(_settings);
+    }
+
+    private async void OnDataGridCellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+    {
+        if (_settings == null) return;
+
+        // Save settings after DataGrid edit
+        await Task.Delay(100); // Small delay to ensure the edit is committed
+        await _configurationService.SaveSettingsAsync(_settings);
     }
 }
