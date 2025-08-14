@@ -13,6 +13,9 @@ using ClipDumpRe.Models;
 using System.ComponentModel;
 using System.Drawing;
 using WinForms = System.Windows.Forms;
+using System.Windows.Interop;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 
 namespace clipdump_re;
 
@@ -23,8 +26,19 @@ public partial class MainWindow : Window
 {
     private readonly ConfigurationService _configurationService;
     private readonly LoggingService _loggingService;
+    private ClipboardService _clipboardService;
     private Settings _settings;
     private NotifyIcon _notifyIcon;
+    private HwndSource _hwndSource;
+
+    // P/Invoke declarations for clipboard monitoring
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
+
+    private const int WM_CLIPBOARDUPDATE = 0x031D;
 
     public MainWindow()
     {
@@ -38,10 +52,60 @@ public partial class MainWindow : Window
         InitializeTrayIcon();
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        
+        // Get the window handle
+        _hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
+        _hwndSource.AddHook(WndProc);
+        
+        // Register for clipboard format listener
+        if (AddClipboardFormatListener(new WindowInteropHelper(this).Handle))
+        {
+            _loggingService.LogEvent("ClipboardListenerRegistered", "Successfully registered clipboard format listener", "");
+        }
+        else
+        {
+            _loggingService.LogEvent("ClipboardListenerFailed", "Failed to register clipboard format listener", $"Error: {Marshal.GetLastWin32Error()}");
+        }
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == WM_CLIPBOARDUPDATE)
+        {
+            _loggingService.LogEvent("ClipboardChanged", "Clipboard content changed", "");
+            
+            // Process clipboard content on UI thread to avoid STA issues
+            if (_clipboardService != null)
+            {
+                Dispatcher.BeginInvoke(new Action(async () => 
+                {
+                    try
+                    {
+                        await _clipboardService.DumpClipboardContentAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _loggingService.LogEvent("ClipboardProcessingError", "Error processing clipboard on UI thread", $"Error: {ex.Message}");
+                    }
+                }));
+            }
+            
+            handled = true;
+        }
+        
+        return IntPtr.Zero;
+    }
+
     private async void LoadSettings()
     {
         _loggingService.LogEvent("SettingsLoadStarted", "Loading settings from configuration", "");
         _settings = await _configurationService.LoadSettingsAsync();
+        
+        // Initialize clipboard service with loaded settings
+        _clipboardService = new ClipboardService(_settings, _loggingService);
         
         // Populate UI controls with loaded settings
         WorkingDirectoryTextBox.Text = _settings.WorkingDirectory;
@@ -189,7 +253,53 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // Remove clipboard listener
+        if (_hwndSource != null)
+        {
+            RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
+            _hwndSource.RemoveHook(WndProc);
+            _loggingService.LogEvent("ClipboardListenerRemoved", "Clipboard format listener removed", "");
+        }
+        
         _notifyIcon?.Dispose();
         base.OnClosed(e);
+    }
+
+    private async void AddNewRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settings == null) return;
+
+        var newRule = new ClipboardFormatRule
+        {
+            Format = "NewFormat",
+            MaxSizeKB = _settings.MaxFileSizeKB,
+            ShouldIgnore = false,
+            RelativeDestinationDirectory = ""
+        };
+
+        _settings.FormatRules.Add(newRule);
+        await _configurationService.SaveSettingsAsync(_settings);
+        
+        // Refresh the DataGrid
+        FormatDataGrid.Items.Refresh();
+        
+        _loggingService.LogEvent("FormatRuleAdded", "New format rule added", $"Format: {newRule.Format}");
+    }
+
+    private async void RemoveRuleButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_settings == null || FormatDataGrid.SelectedItem == null) return;
+
+        var selectedRule = FormatDataGrid.SelectedItem as ClipboardFormatRule;
+        if (selectedRule != null)
+        {
+            _settings.FormatRules.Remove(selectedRule);
+            await _configurationService.SaveSettingsAsync(_settings);
+            
+            // Refresh the DataGrid
+            FormatDataGrid.Items.Refresh();
+            
+            _loggingService.LogEvent("FormatRuleRemoved", "Format rule removed", $"Format: {selectedRule.Format}");
+        }
     }
 }

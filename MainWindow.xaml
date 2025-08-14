@@ -48,8 +48,8 @@
 
         <!-- Buttons Row -->
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="10" HorizontalAlignment="Left">
-            <Button Name="AddNewRuleButton" Content="Add New Rule" Margin="0,0,10,0" Padding="10,5"/>
-            <Button Name="RemoveRuleButton" Content="Remove Rule" Padding="10,5"/>
+            <Button Name="AddNewRuleButton" Content="Add New Rule" Margin="0,0,10,0" Padding="10,5" Click="AddNewRuleButton_Click"/>
+            <Button Name="RemoveRuleButton" Content="Remove Rule" Padding="10,5" Click="RemoveRuleButton_Click"/>
         </StackPanel>
     </Grid>
 </Window>
