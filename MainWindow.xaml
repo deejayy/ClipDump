@@ -27,6 +27,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -76,6 +77,14 @@
                           Margin="10">
                         <CheckBox Name="StartWithWindowsCheckBox"
                                   Content="Start with Windows"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Use Timestamp Subdirectories Row -->
+                    <Grid Grid.Row="3"
+                          Margin="10">
+                        <CheckBox Name="UseTimestampSubdirectoriesCheckBox"
+                                  Content="Save files in timestamp-based subdirectories (instead of filename prefixes)"
                                   VerticalAlignment="Center"/>
                     </Grid>
                 </Grid>

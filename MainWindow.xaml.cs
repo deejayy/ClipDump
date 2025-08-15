@@ -124,6 +124,7 @@ public partial class MainWindow : Window
         WorkingDirectoryTextBox.Text = _settings.WorkingDirectory;
         MaxFileSizeTextBox.Text = _settings.MaxFileSizeKB.ToString();
         StartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
+        UseTimestampSubdirectoriesCheckBox.IsChecked = _settings.UseTimestampSubdirectories;
         FormatDataGrid.ItemsSource = _settings.FormatRules;
         ApplicationDataGrid.ItemsSource = _settings.ApplicationRules;
 
@@ -146,6 +147,8 @@ public partial class MainWindow : Window
         MaxFileSizeTextBox.TextChanged += OnSettingsChanged;
         StartWithWindowsCheckBox.Checked += OnStartWithWindowsChanged;
         StartWithWindowsCheckBox.Unchecked += OnStartWithWindowsChanged;
+        UseTimestampSubdirectoriesCheckBox.Checked += OnUseTimestampSubdirectoriesChanged;
+        UseTimestampSubdirectoriesCheckBox.Unchecked += OnUseTimestampSubdirectoriesChanged;
         FormatDataGrid.CellEditEnding += OnDataGridCellEditEnding;
         ApplicationDataGrid.CellEditEnding += OnApplicationDataGridCellEditEnding;
         SeenFormatsDataGrid.MouseDoubleClick += OnSeenFormatsDataGridDoubleClick;
@@ -188,6 +191,21 @@ public partial class MainWindow : Window
         await _configurationService.SaveSettingsAsync(_settings);
 
         _loggingService.LogEvent("StartWithWindowsChanged", "Start with Windows setting changed",
+            $"Previous: {oldValue}, New: {isChecked}");
+    }
+
+    private async void OnUseTimestampSubdirectoriesChanged(object sender, RoutedEventArgs e)
+    {
+        if (_settings == null) return;
+
+        bool isChecked = UseTimestampSubdirectoriesCheckBox.IsChecked == true;
+        bool oldValue = _settings.UseTimestampSubdirectories;
+        
+        _settings.UseTimestampSubdirectories = isChecked;
+        
+        await _configurationService.SaveSettingsAsync(_settings);
+
+        _loggingService.LogEvent("UseTimestampSubdirectoriesChanged", "Timestamp subdirectories setting changed",
             $"Previous: {oldValue}, New: {isChecked}");
     }
 

@@ -219,7 +219,7 @@ namespace ClipDumpRe.Services
                     return (false, "Size limit exceeded");
 
                 string outputDir = GetFormatOutputDirectory(baseOutputDir, formatRule);
-                string filePath = BuildFilePath(outputDir, timestamp, format, data);
+                string filePath = BuildFilePath(outputDir, timestamp, format, data, formatRule, applicationRule);
 
                 long dataSize = FileUtils.GetDataSize(data);
                 await FileUtils.SaveClipboardDataAsync(filePath, format, data);
@@ -266,12 +266,31 @@ namespace ClipDumpRe.Services
             return outputDir;
         }
 
-        private string BuildFilePath(string outputDir, string timestamp, string format, object data)
+        private string BuildFilePath(string outputDir, string timestamp, string format, object data, ClipboardFormatRule formatRule = null, ApplicationRule applicationRule = null)
         {
             string safeFormatName = FileUtils.SanitizeFileName(format);
             string extension = FileUtils.GetFileExtension(format, data);
-            string fileName = $"{timestamp}_{safeFormatName}.{extension}";
-            return Path.Combine(outputDir, fileName);
+            
+            // Check if custom directories are set in rules - if so, use prefix naming
+            bool hasCustomDirectory = (formatRule != null && !string.IsNullOrWhiteSpace(formatRule.RelativeDestinationDirectory)) ||
+                                    (applicationRule != null && !string.IsNullOrWhiteSpace(applicationRule.RelativeDestinationDirectory));
+            
+            if (_settings.UseTimestampSubdirectories && !hasCustomDirectory)
+            {
+                // Create subdirectory based on timestamp
+                string timestampDir = Path.Combine(outputDir, timestamp);
+                if (!Directory.Exists(timestampDir))
+                    Directory.CreateDirectory(timestampDir);
+                
+                string fileName = $"{safeFormatName}.{extension}";
+                return Path.Combine(timestampDir, fileName);
+            }
+            else
+            {
+                // Use timestamp prefix in filename (original behavior)
+                string fileName = $"{timestamp}_{safeFormatName}.{extension}";
+                return Path.Combine(outputDir, fileName);
+            }
         }
     }
 }
