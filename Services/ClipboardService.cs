@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using ClipDumpRe.Models;
 using ClipDumpRe.Utils;
+using System.Text.Json;
 
 namespace ClipDumpRe.Services
 {
@@ -53,7 +54,20 @@ namespace ClipDumpRe.Services
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
                 string baseOutputDir = GetOutputDirectory(applicationRule);
 
-                await ProcessClipboardFormatsAsync(dataObject, formats, timestamp, baseOutputDir, appInfo, applicationRule);
+                // Create metadata object
+                var metadata = new ClipboardMetadata
+                {
+                    Timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ"),
+                    ForegroundApplication = appInfo
+                };
+
+                // Collect metadata for all detected formats
+                await CollectDetectedFormatsMetadataAsync(dataObject, formats, metadata);
+
+                await ProcessClipboardFormatsAsync(dataObject, formats, timestamp, baseOutputDir, appInfo, applicationRule, metadata);
+
+                // Save metadata file
+                await SaveMetadataAsync(metadata, timestamp, baseOutputDir);
             }
             catch (Exception ex)
             {
@@ -161,7 +175,7 @@ namespace ClipDumpRe.Services
             return baseOutputDir;
         }
 
-        private async Task ProcessClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ApplicationRule applicationRule)
+        private async Task ProcessClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ApplicationRule applicationRule, ClipboardMetadata metadata)
         {
             await _loggingService.LogEventAsync("ClipboardProcessingStarted", $"Processing {formats.Length} clipboard formats",
                 $"Output directory: {baseOutputDir}, Source app: {appInfo.ProcessName}");
@@ -198,7 +212,7 @@ namespace ClipDumpRe.Services
             foreach (string format in deduplicatedFormats)
             {
                 var formatRule = GetFormatRule(format);
-                var result = await ProcessSingleFormatAsync(dataObject, format, formatRule, applicationRule, timestamp, baseOutputDir, appInfo);
+                var result = await ProcessSingleFormatAsync(dataObject, format, formatRule, applicationRule, timestamp, baseOutputDir, appInfo, metadata);
                 if (result.Success)
                     savedCount++;
                 else
@@ -321,7 +335,7 @@ namespace ClipDumpRe.Services
             return false;
         }
 
-        private async Task<(bool Success, string Message)> ProcessSingleFormatAsync(System.Windows.IDataObject dataObject, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo)
+        private async Task<(bool Success, string Message)> ProcessSingleFormatAsync(System.Windows.IDataObject dataObject, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ClipboardMetadata metadata)
         {
             try
             {
@@ -335,10 +349,31 @@ namespace ClipDumpRe.Services
                 string outputDir = GetFormatOutputDirectory(baseOutputDir, formatRule);
                 string filePath = BuildFilePath(outputDir, timestamp, format, data, formatRule, applicationRule);
 
-                long dataSize = FileUtils.GetDataSize(data);
+                long clipboardDataSize = FileUtils.GetDataSize(data);
+                string contentHash = CalculateContentHash(data);
+                string extension = FileUtils.GetFileExtension(format, data);
+                string dataType = GetDataType(data);
+
                 await FileUtils.SaveClipboardDataAsync(filePath, format, data);
+
+                // Get file size after saving
+                long fileDataSize = new FileInfo(filePath).Length;
+                string relativeFilePath = Path.GetRelativePath(baseOutputDir, filePath);
+
+                // Add to metadata
+                metadata.SavedFormats.Add(new SavedFormatMetadata
+                {
+                    FormatName = format,
+                    FileExtension = extension,
+                    DataType = dataType,
+                    ClipboardDataSize = clipboardDataSize,
+                    FileDataSize = fileDataSize,
+                    SHA256Hash = contentHash,
+                    RelativeFilePath = relativeFilePath
+                });
+
                 await _loggingService.LogEventAsync("FileSaved", $"Clipboard data saved to file",
-                    $"Format: {format}, File: {Path.GetFileName(filePath)}, Size: {dataSize} bytes, Directory: {Path.GetRelativePath(baseOutputDir, outputDir)}, Source: {appInfo.ProcessName}");
+                    $"Format: {format}, File: {Path.GetFileName(filePath)}, Size: {clipboardDataSize} bytes, Directory: {Path.GetRelativePath(baseOutputDir, outputDir)}, Source: {appInfo.ProcessName}");
                 
                 return (true, "Saved successfully");
             }
@@ -347,6 +382,88 @@ namespace ClipDumpRe.Services
                 await _loggingService.LogEventAsync("FileSaveError", $"Error saving clipboard format", $"Format: {format}, Error: {ex.Message}");
                 Debug.WriteLine($"Error saving format '{format}': {ex.Message}");
                 return (false, ex.Message);
+            }
+        }
+
+        private string GetDataType(object data)
+        {
+            if (data == null) return "null";
+            
+            var type = data.GetType();
+            if (type == typeof(string)) return "string";
+            if (type == typeof(byte[])) return "byte[]";
+            if (type == typeof(System.IO.MemoryStream)) return "MemoryStream";
+            if (typeof(System.IO.Stream).IsAssignableFrom(type)) return "Stream";
+            if (type == typeof(System.Drawing.Bitmap)) return "Bitmap";
+            if (type == typeof(System.Drawing.Image)) return "Image";
+            if (type.Name.Contains("Metafile")) return "Metafile";
+            
+            return type.Name;
+        }
+
+        private async Task SaveMetadataAsync(ClipboardMetadata metadata, string timestamp, string baseOutputDir)
+        {
+            try
+            {
+                string metadataFileName = _settings.UseTimestampSubdirectories 
+                    ? Path.Combine(baseOutputDir, timestamp, "metadata.json")
+                    : Path.Combine(baseOutputDir, $"{timestamp}_metadata.json");
+
+                // Ensure directory exists
+                string metadataDir = Path.GetDirectoryName(metadataFileName);
+                if (!Directory.Exists(metadataDir))
+                    Directory.CreateDirectory(metadataDir);
+
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+
+                string jsonContent = JsonSerializer.Serialize(metadata, options);
+                await File.WriteAllTextAsync(metadataFileName, jsonContent);
+
+                await _loggingService.LogEventAsync("MetadataSaved", "Clipboard metadata saved",
+                    $"File: {Path.GetFileName(metadataFileName)}, Detected formats: {metadata.DetectedFormats.Count}, Saved formats: {metadata.SavedFormats.Count}");
+            }
+            catch (Exception ex)
+            {
+                await _loggingService.LogEventAsync("MetadataSaveError", "Error saving metadata", $"Error: {ex.Message}");
+            }
+        }
+
+        private async Task CollectDetectedFormatsMetadataAsync(System.Windows.IDataObject dataObject, string[] formats, ClipboardMetadata metadata)
+        {
+            foreach (string format in formats)
+            {
+                try
+                {
+                    var data = dataObject.GetData(format);
+                    if (data == null) continue;
+
+                    long dataSize = FileUtils.GetDataSize(data);
+                    string contentHash = CalculateContentHash(data);
+
+                    metadata.DetectedFormats.Add(new ClipboardFormatMetadata
+                    {
+                        FormatName = format,
+                        DataSize = dataSize,
+                        SHA256Hash = contentHash
+                    });
+                }
+                catch (Exception ex)
+                {
+                    await _loggingService.LogEventAsync("MetadataCollectionError", 
+                        $"Error collecting metadata for format '{format}'", $"Error: {ex.Message}");
+                    
+                    // Add entry with error information
+                    metadata.DetectedFormats.Add(new ClipboardFormatMetadata
+                    {
+                        FormatName = format,
+                        DataSize = -1,
+                        SHA256Hash = "ERROR"
+                    });
+                }
             }
         }
 
