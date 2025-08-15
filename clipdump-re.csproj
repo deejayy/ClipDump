@@ -24,8 +24,6 @@
     <Resource Include="Resources\Icon\clipdump.ico" />
     <Resource Include="Resources\Icon\clipdump-disabled.png" />
     <Resource Include="Resources\Icon\clipdump-disabled.ico" />
-    <Resource Include="Themes\LightTheme.xaml" />
-    <Resource Include="Themes\DarkTheme.xaml" />
   </ItemGroup>
 
 </Project>

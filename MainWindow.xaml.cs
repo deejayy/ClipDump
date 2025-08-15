@@ -36,7 +36,6 @@ public partial class MainWindow : Window
     private TrayIconService _trayIconService;
     private Settings _settings;
     private HwndSource _hwndSource;
-    private ThemeService _themeService;
 
     // P/Invoke declarations for clipboard monitoring
     [DllImport("user32.dll", SetLastError = true)]
@@ -56,7 +55,6 @@ public partial class MainWindow : Window
         _formatCacheService = new FormatCacheService(_loggingService);
         _applicationEnumerationService = new ApplicationEnumerationService(_loggingService);
         _startupService = new WindowsStartupService(_loggingService);
-        _themeService = new ThemeService(_loggingService);
 
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
         LoadSettings();
@@ -119,10 +117,6 @@ public partial class MainWindow : Window
         _loggingService.LogEvent("SettingsLoadStarted", "Loading settings from configuration", "");
         _settings = await _configurationService.LoadSettingsAsync();
 
-        // Apply theme from settings
-        _themeService.SetTheme(_settings.Theme);
-        UpdateThemeToggleButton();
-
         // Initialize clipboard service with loaded settings, foreground app service, tray icon service, and format cache service
         _clipboardService = new ClipboardService(_settings, _loggingService, _foregroundApplicationService, _trayIconService, _formatCacheService);
 
@@ -155,7 +149,6 @@ public partial class MainWindow : Window
         FormatDataGrid.CellEditEnding += OnDataGridCellEditEnding;
         ApplicationDataGrid.CellEditEnding += OnApplicationDataGridCellEditEnding;
         SeenFormatsDataGrid.MouseDoubleClick += OnSeenFormatsDataGridDoubleClick;
-        _themeService.ThemeChanged += OnThemeChanged;
 
         _loggingService.LogEvent("EventHandlersAttached", "UI event handlers attached", "");
     }
@@ -490,11 +483,6 @@ public partial class MainWindow : Window
         if (_trayIconService != null)
         {
             _trayIconService.ProcessingStateChanged -= OnProcessingStateChanged;
-        }
-
-        if (_themeService != null)
-        {
-            _themeService.ThemeChanged -= OnThemeChanged;
         }
 
         _trayIconService?.Dispose();
@@ -842,34 +830,6 @@ public partial class MainWindow : Window
 
         _loggingService.LogEvent("ApplicationRuleAddedFromRunning", "Application rule added from running app",
             $"Executable: {executableName}, Process: {processName}");
-    }
-
-    private void OnThemeChanged(object sender, Theme theme)
-    {
-        if (_settings != null)
-        {
-            _settings.Theme = theme;
-            Task.Run(async () => await _configurationService.SaveSettingsAsync(_settings));
-            
-            Dispatcher.BeginInvoke(new Action(() =>
-            {
-                UpdateThemeToggleButton();
-            }));
-        }
-    }
-
-    private void UpdateThemeToggleButton()
-    {
-        if (ThemeToggleButton != null)
-        {
-            ThemeToggleButton.Content = _themeService.CurrentTheme == Theme.Light ? "Dark Mode" : "Light Mode";
-        }
-    }
-
-    private void ThemeToggleButton_Click(object sender, RoutedEventArgs e)
-    {
-        _themeService.ToggleTheme();
-        _loggingService.LogEvent("ThemeToggled", "Theme toggled by user", $"New theme: {_themeService.CurrentTheme}");
     }
 
     private async void ClearHistoryButton_Click(object sender, RoutedEventArgs e)

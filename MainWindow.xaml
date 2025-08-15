@@ -69,16 +69,6 @@
                                   Content="Start with Windows"
                                   VerticalAlignment="Center"/>
                     </Grid>
-
-                    <!-- Theme Toggle Row -->
-                    <Grid Grid.Row="3"
-                          Margin="10">
-                        <Button Name="ThemeToggleButton"
-                                Content="Dark Mode"
-                                HorizontalAlignment="Left"
-                                Padding="10,5"
-                                Click="ThemeToggleButton_Click"/>
-                    </Grid>
                 </Grid>
             </TabItem>
 

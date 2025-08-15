@@ -22,8 +22,6 @@ namespace ClipDumpRe.Models
             new ApplicationRule { ExecutableFileName = "keepassxc.exe", ShouldIgnore = true },
         };
 
-        public Theme Theme { get; set; } = Theme.Light;
-
         // Property to handle kilobyte conversion for UI
         [JsonIgnore]
         public int MaxFileSizeKB
