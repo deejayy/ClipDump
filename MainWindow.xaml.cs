@@ -868,6 +868,45 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenWorkingDirectoryButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            string workingDirectory = WorkingDirectoryTextBox.Text;
+            
+            if (string.IsNullOrWhiteSpace(workingDirectory))
+            {
+                _loggingService.LogEvent("OpenDirectoryFailed", "Working directory is empty", "");
+                System.Windows.MessageBox.Show("Working directory is not set.", "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Expand environment variables
+            string expandedPath = Environment.ExpandEnvironmentVariables(workingDirectory);
+            
+            // Resolve to absolute path (handles relative paths)
+            string absolutePath = System.IO.Path.GetFullPath(expandedPath);
+
+            if (!Directory.Exists(absolutePath))
+            {
+                _loggingService.LogEvent("OpenDirectoryFailed", "Working directory does not exist after resolution", 
+                    $"Original: {workingDirectory}, Resolved: {absolutePath}");
+                System.Windows.MessageBox.Show($"Directory does not exist: {absolutePath}\n(Original: {workingDirectory})", 
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Process.Start("explorer.exe", absolutePath);
+            _loggingService.LogEvent("WorkingDirectoryOpened", "Working directory opened in Explorer", 
+                $"Original: {workingDirectory}, Resolved: {absolutePath}");
+        }
+        catch (Exception ex)
+        {
+            _loggingService.LogEvent("OpenDirectoryError", "Error opening working directory", $"Error: {ex.Message}");
+            System.Windows.MessageBox.Show($"Failed to open directory: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void AboutButton_Click(object sender, RoutedEventArgs e)
     {
         var aboutWindow = new AboutWindow

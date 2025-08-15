@@ -36,6 +36,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Label Grid.Column="0"
                                Content="Working directory:"
@@ -43,7 +44,15 @@
                                Margin="0,0,10,0"/>
                         <TextBox Grid.Column="1"
                                  Name="WorkingDirectoryTextBox"
-                                 VerticalAlignment="Center"/>
+                                 VerticalAlignment="Center"
+                                 Margin="0,0,5,0"/>
+                        <Button Grid.Column="2"
+                                Name="OpenWorkingDirectoryButton"
+                                Content="📁"
+                                ToolTip="Open in Explorer"
+                                VerticalAlignment="Center"
+                                Padding="8,4"
+                                Click="OpenWorkingDirectoryButton_Click"/>
                     </Grid>
 
                     <!-- Max File Size Row -->
