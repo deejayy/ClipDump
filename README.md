@@ -1,9 +1,10 @@
 # ClipDump - A clipboard dumper for Windows built on .NET SDK 9
 
-<img width="676" height="398" alt="image" src="https://github.com/user-attachments/assets/698f7bf2-cfb1-44cc-b397-6f85e8354494" />
-<img width="676" height="398" alt="image" src="https://github.com/user-attachments/assets/5f943387-0087-423f-a7ff-1005bcfac291" />
-<img width="676" height="398" alt="image" src="https://github.com/user-attachments/assets/9e20fcd4-1eda-4bca-b265-129317a4b3ca" />
-<img width="699" height="574" alt="image" src="https://github.com/user-attachments/assets/b336bb3e-d247-45b0-8a72-c3aea7974bba" />
+<img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/ad3bbc7f-19e3-450a-a2ab-61a1c93ae4e1" />
+<img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/5d0a77c4-63b7-49fd-995d-e6feffbf7042" />
+<img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/ed4442c7-ca82-4dc9-8cca-bb8320ea6149" />
+<img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/0eb02638-1d22-4bc8-bb2e-2c458eeaf0d1" />
+
 
 ClipDump is a Windows application that monitors clipboard activity and automatically saves clipboard content to disk. It features a comprehensive WPF interface for configuration and runs as a background service with system tray integration. The application captures various clipboard data formats including text, images, HTML, and files, with intelligent rules-based processing for different applications and formats.
 
