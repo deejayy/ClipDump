@@ -6,7 +6,7 @@ namespace ClipDumpRe.Services
 {
     public class LoggingService
     {
-        private const string LogFileName = "clipdump-re.log";
+        private const string LogFileName = "clipdump.log";
         private readonly string _logFilePath;
         private readonly object _lockObject = new object();
 

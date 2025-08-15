@@ -14,135 +14,264 @@ namespace ClipDumpRe.Services
     {
         private readonly Settings _settings;
         private readonly LoggingService _loggingService;
+        private readonly ForegroundApplicationService _foregroundApplicationService;
+        private readonly TrayIconService _trayIconService;
+        private readonly FormatCacheService _formatCacheService;
 
-        public ClipboardService(Settings settings, LoggingService loggingService)
+        public ClipboardService(Settings settings, LoggingService loggingService, ForegroundApplicationService foregroundApplicationService, TrayIconService trayIconService, FormatCacheService formatCacheService)
         {
             _settings = settings;
             _loggingService = loggingService;
+            _foregroundApplicationService = foregroundApplicationService;
+            _trayIconService = trayIconService;
+            _formatCacheService = formatCacheService;
         }
 
         public async Task DumpClipboardContentAsync()
         {
             try
             {
-                // Ensure we're on an STA thread for clipboard operations
-                if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
-                {
-                    await _loggingService.LogEventAsync("ClipboardProcessingError", "Invalid thread apartment state for clipboard access", "Current thread must be STA for clipboard operations");
+                if (!await ShouldProcessClipboardAsync())
                     return;
-                }
 
-                System.Windows.IDataObject dataObject = null;
-                try
-                {
-                    dataObject = System.Windows.Clipboard.GetDataObject();
-                }
-                catch (Exception ex)
-                {
-                    await _loggingService.LogEventAsync("ClipboardAccessError", "Failed to access clipboard", $"Error: {ex.Message}");
+                var appInfo = await GetForegroundApplicationInfoAsync();
+                var applicationRule = GetApplicationRule(appInfo);
+                
+                if (await ShouldIgnoreApplicationAsync(applicationRule, appInfo))
                     return;
-                }
 
+                var dataObject = await GetClipboardDataObjectAsync();
                 if (dataObject == null)
-                {
-                    await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "No clipboard data object available", "");
                     return;
-                }
 
                 var formats = dataObject.GetFormats();
+                await TrackSeenFormatsAsync(formats);
 
-                // Check if clipboard content should be excluded from monitoring
-                if (formats.Contains("ExcludeClipboardContentFromMonitorProcessing"))
-                {
-                    await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "Content excluded from monitoring", "ExcludeClipboardContentFromMonitorProcessing format detected");
-                    Debug.WriteLine("Clipboard content excluded from monitoring - skipping save");
+                if (await ShouldExcludeFromMonitoringAsync(formats))
                     return;
-                }
 
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss-fff");
+                string baseOutputDir = GetOutputDirectory(applicationRule);
 
-                // Get working directory from settings
-                string workingDir = _settings.WorkingDirectory;
-
-                string expandedDir = Environment.ExpandEnvironmentVariables(workingDir);
-                string baseOutputDir = Path.IsPathRooted(expandedDir)
-                    ? expandedDir
-                    : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expandedDir);
-
-                if (!Directory.Exists(baseOutputDir))
-                    Directory.CreateDirectory(baseOutputDir);
-
-                await _loggingService.LogEventAsync("ClipboardProcessingStarted", $"Processing {formats.Length} clipboard formats", $"Output directory: {baseOutputDir}");
-
-                int savedCount = 0;
-                int skippedCount = 0;
-
-                foreach (string format in formats)
-                {
-                    // Check format-specific rules
-                    var formatRule = _settings.FormatRules.FirstOrDefault(r =>
-                        string.Equals(r.Format, format, StringComparison.OrdinalIgnoreCase));
-
-                    // If format rule exists and should be ignored, skip
-                    if (formatRule?.ShouldIgnore == true)
-                    {
-                        await _loggingService.LogEventAsync("ClipboardFormatIgnored", $"Format skipped due to format rule", $"Format: {format}");
-                        skippedCount++;
-                        Debug.WriteLine($"Skipping format '{format}' due to format rule ignore setting");
-                        continue;
-                    }
-
-                    try
-                    {
-                        var data = dataObject.GetData(format);
-                        if (data == null) continue;
-
-                        // Check data size using format-specific limit or global limit
-                        long dataSize = FileUtils.GetDataSize(data);
-                        int maxSizeLimit = (formatRule?.MaxSizeKB ?? _settings.MaxFileSizeKB) * 1024;
-
-                        if (maxSizeLimit > 0 && dataSize > maxSizeLimit)
-                        {
-                            string limitSource = formatRule != null ? "format rule" : "global setting";
-                            await _loggingService.LogEventAsync("ClipboardFormatSkipped", $"Format skipped due to size limit ({limitSource})",
-                                $"Format: {format}, Size: {dataSize} bytes, Limit: {maxSizeLimit} bytes");
-                            skippedCount++;
-                            Debug.WriteLine($"Skipping format '{format}' - size {dataSize} bytes exceeds {limitSource} limit of {maxSizeLimit} bytes");
-                            continue;
-                        }
-
-                        // Determine output directory - use format-specific or default
-                        string outputDir = baseOutputDir;
-                        if (formatRule != null && !string.IsNullOrWhiteSpace(formatRule.RelativeDestinationDirectory))
-                        {
-                            outputDir = Path.Combine(baseOutputDir, formatRule.RelativeDestinationDirectory);
-                            if (!Directory.Exists(outputDir))
-                                Directory.CreateDirectory(outputDir);
-                        }
-
-                        string safeFormatName = FileUtils.SanitizeFileName(format);
-                        string extension = FileUtils.GetFileExtension(format, data);
-                        string fileName = $"{timestamp}_{safeFormatName}.{extension}";
-                        string filePath = Path.Combine(outputDir, fileName);
-
-                        await FileUtils.SaveClipboardDataAsync(filePath, format, data);
-                        await _loggingService.LogEventAsync("FileSaved", $"Clipboard data saved to file", $"Format: {format}, File: {fileName}, Size: {dataSize} bytes, Directory: {Path.GetRelativePath(baseOutputDir, outputDir)}");
-                        savedCount++;
-                    }
-                    catch (Exception ex)
-                    {
-                        await _loggingService.LogEventAsync("FileSaveError", $"Error saving clipboard format", $"Format: {format}, Error: {ex.Message}");
-                        Debug.WriteLine($"Error saving format '{format}': {ex.Message}");
-                    }
-                }
-
-                await _loggingService.LogEventAsync("ClipboardProcessingCompleted", $"Clipboard processing finished", $"Saved: {savedCount}, Skipped: {skippedCount}, Total formats: {formats.Length}");
+                await ProcessClipboardFormatsAsync(dataObject, formats, timestamp, baseOutputDir, appInfo, applicationRule);
             }
             catch (Exception ex)
             {
                 await _loggingService.LogEventAsync("ClipboardProcessingError", $"Error during clipboard processing", $"Error: {ex.Message}");
                 Debug.WriteLine($"Error dumping clipboard content: {ex.Message}");
             }
+        }
+
+        private async Task<bool> ShouldProcessClipboardAsync()
+        {
+            if (!_trayIconService.IsClipDumpEnabled)
+            {
+                await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "ClipDump is currently disabled", "");
+                return false;
+            }
+
+            if (Thread.CurrentThread.GetApartmentState() != ApartmentState.STA)
+            {
+                await _loggingService.LogEventAsync("ClipboardProcessingError", "Invalid thread apartment state for clipboard access", "Current thread must be STA for clipboard operations");
+                return false;
+            }
+
+            return true;
+        }
+
+        private async Task<ForegroundApplicationInfo> GetForegroundApplicationInfoAsync()
+        {
+            var appInfo = _foregroundApplicationService.GetForegroundApplicationInfo();
+            await _loggingService.LogEventAsync("ForegroundApplicationDetected", "Current foreground application detected",
+                $"Process: {appInfo.ProcessName}, Executable: {appInfo.ExecutablePath}, Window: {appInfo.WindowTitle}, Class: {appInfo.WindowClass}");
+            return appInfo;
+        }
+
+        private ApplicationRule GetApplicationRule(ForegroundApplicationInfo appInfo)
+        {
+            return _settings.ApplicationRules.FirstOrDefault(r =>
+                string.Equals(Path.GetFileName(appInfo.ExecutablePath), r.ExecutableFileName, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals($"{appInfo.ProcessName}.exe", r.ExecutableFileName, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private async Task<bool> ShouldIgnoreApplicationAsync(ApplicationRule applicationRule, ForegroundApplicationInfo appInfo)
+        {
+            if (applicationRule?.ShouldIgnore == true)
+            {
+                await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "Application is in ignore list",
+                    $"Application: {appInfo.ProcessName}, Rule: {applicationRule.ExecutableFileName}");
+                return true;
+            }
+            return false;
+        }
+
+        private async Task<System.Windows.IDataObject> GetClipboardDataObjectAsync()
+        {
+            try
+            {
+                var dataObject = System.Windows.Clipboard.GetDataObject();
+                if (dataObject == null)
+                {
+                    await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "No clipboard data object available", "");
+                }
+                return dataObject;
+            }
+            catch (Exception ex)
+            {
+                await _loggingService.LogEventAsync("ClipboardAccessError", "Failed to access clipboard", $"Error: {ex.Message}");
+                return null;
+            }
+        }
+
+        private async Task TrackSeenFormatsAsync(string[] formats)
+        {
+            foreach (string format in formats)
+            {
+                await _formatCacheService.AddSeenFormatAsync(format);
+            }
+        }
+
+        private async Task<bool> ShouldExcludeFromMonitoringAsync(string[] formats)
+        {
+            if (formats.Contains("ExcludeClipboardContentFromMonitorProcessing"))
+            {
+                await _loggingService.LogEventAsync("ClipboardProcessingSkipped", "Content excluded from monitoring", "ExcludeClipboardContentFromMonitorProcessing format detected");
+                Debug.WriteLine("Clipboard content excluded from monitoring - skipping save");
+                return true;
+            }
+            return false;
+        }
+
+        private string GetOutputDirectory(ApplicationRule applicationRule)
+        {
+            string workingDir = _settings.WorkingDirectory;
+            if (applicationRule != null && !string.IsNullOrWhiteSpace(applicationRule.RelativeDestinationDirectory))
+            {
+                workingDir = Path.Combine(_settings.WorkingDirectory, applicationRule.RelativeDestinationDirectory);
+            }
+
+            string expandedDir = Environment.ExpandEnvironmentVariables(workingDir);
+            string baseOutputDir = Path.IsPathRooted(expandedDir)
+                ? expandedDir
+                : Path.Combine(AppDomain.CurrentDomain.BaseDirectory, expandedDir);
+
+            if (!Directory.Exists(baseOutputDir))
+                Directory.CreateDirectory(baseOutputDir);
+
+            return baseOutputDir;
+        }
+
+        private async Task ProcessClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ApplicationRule applicationRule)
+        {
+            await _loggingService.LogEventAsync("ClipboardProcessingStarted", $"Processing {formats.Length} clipboard formats",
+                $"Output directory: {baseOutputDir}, Source app: {appInfo.ProcessName}");
+
+            int savedCount = 0;
+            int skippedCount = 0;
+
+            foreach (string format in formats)
+            {
+                var formatRule = GetFormatRule(format);
+                
+                if (await ShouldIgnoreFormatAsync(formatRule, format))
+                {
+                    skippedCount++;
+                    continue;
+                }
+
+                var result = await ProcessSingleFormatAsync(dataObject, format, formatRule, applicationRule, timestamp, baseOutputDir, appInfo);
+                if (result.Success)
+                    savedCount++;
+                else
+                    skippedCount++;
+            }
+
+            await _loggingService.LogEventAsync("ClipboardProcessingCompleted", $"Clipboard processing finished",
+                $"Saved: {savedCount}, Skipped: {skippedCount}, Total formats: {formats.Length}, Source app: {appInfo.ProcessName}");
+        }
+
+        private ClipboardFormatRule GetFormatRule(string format)
+        {
+            return _settings.FormatRules.FirstOrDefault(r =>
+                string.Equals(r.Format, format, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private async Task<bool> ShouldIgnoreFormatAsync(ClipboardFormatRule formatRule, string format)
+        {
+            if (formatRule?.ShouldIgnore == true)
+            {
+                await _loggingService.LogEventAsync("ClipboardFormatIgnored", $"Format skipped due to format rule", $"Format: {format}");
+                Debug.WriteLine($"Skipping format '{format}' due to format rule ignore setting");
+                return true;
+            }
+            return false;
+        }
+
+        private async Task<(bool Success, string Message)> ProcessSingleFormatAsync(System.Windows.IDataObject dataObject, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo)
+        {
+            try
+            {
+                var data = dataObject.GetData(format);
+                if (data == null) 
+                    return (false, "No data");
+
+                if (!await ValidateDataSizeAsync(data, format, formatRule, applicationRule))
+                    return (false, "Size limit exceeded");
+
+                string outputDir = GetFormatOutputDirectory(baseOutputDir, formatRule);
+                string filePath = BuildFilePath(outputDir, timestamp, format, data);
+
+                long dataSize = FileUtils.GetDataSize(data);
+                await FileUtils.SaveClipboardDataAsync(filePath, format, data);
+                await _loggingService.LogEventAsync("FileSaved", $"Clipboard data saved to file",
+                    $"Format: {format}, File: {Path.GetFileName(filePath)}, Size: {dataSize} bytes, Directory: {Path.GetRelativePath(baseOutputDir, outputDir)}, Source: {appInfo.ProcessName}");
+                
+                return (true, "Saved successfully");
+            }
+            catch (Exception ex)
+            {
+                await _loggingService.LogEventAsync("FileSaveError", $"Error saving clipboard format", $"Format: {format}, Error: {ex.Message}");
+                Debug.WriteLine($"Error saving format '{format}': {ex.Message}");
+                return (false, ex.Message);
+            }
+        }
+
+        private async Task<bool> ValidateDataSizeAsync(object data, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule)
+        {
+            long dataSize = FileUtils.GetDataSize(data);
+            int maxSizeLimit = (formatRule?.MaxSizeKB ?? applicationRule?.MaxSizeKB ?? _settings.MaxFileSizeKB) * 1024;
+
+            if (maxSizeLimit > 0 && dataSize > maxSizeLimit)
+            {
+                string limitSource = formatRule != null ? "format rule" :
+                                   applicationRule != null ? "application rule" : "global setting";
+                await _loggingService.LogEventAsync("ClipboardFormatSkipped", $"Format skipped due to size limit ({limitSource})",
+                    $"Format: {format}, Size: {dataSize} bytes, Limit: {maxSizeLimit} bytes");
+                Debug.WriteLine($"Skipping format '{format}' - size {dataSize} bytes exceeds {limitSource} limit of {maxSizeLimit} bytes");
+                return false;
+            }
+
+            return true;
+        }
+
+        private string GetFormatOutputDirectory(string baseOutputDir, ClipboardFormatRule formatRule)
+        {
+            string outputDir = baseOutputDir;
+            if (formatRule != null && !string.IsNullOrWhiteSpace(formatRule.RelativeDestinationDirectory))
+            {
+                outputDir = Path.Combine(baseOutputDir, formatRule.RelativeDestinationDirectory);
+                if (!Directory.Exists(outputDir))
+                    Directory.CreateDirectory(outputDir);
+            }
+            return outputDir;
+        }
+
+        private string BuildFilePath(string outputDir, string timestamp, string format, object data)
+        {
+            string safeFormatName = FileUtils.SanitizeFileName(format);
+            string extension = FileUtils.GetFileExtension(format, data);
+            string fileName = $"{timestamp}_{safeFormatName}.{extension}";
+            return Path.Combine(outputDir, fileName);
         }
     }
 }

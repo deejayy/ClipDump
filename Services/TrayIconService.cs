@@ -3,6 +3,10 @@ using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
 using ClipDumpRe.Services;
+using Microsoft.Win32;
+using System.IO;
+using System.Reflection;
+using System.Diagnostics;
 
 namespace ClipDumpRe.Services
 {
@@ -11,22 +15,50 @@ namespace ClipDumpRe.Services
         private NotifyIcon _notifyIcon;
         private readonly LoggingService _loggingService;
         private readonly Window _parentWindow;
+        private readonly WindowsStartupService _startupService;
+        private System.Windows.Forms.Timer _enableTimer;
+        private System.Windows.Forms.Timer _menuUpdateTimer;
+        private DateTime _disableEndTime;
+        private bool _isClipDumpEnabled = true;
+        private ToolStripMenuItem _disableMenuItem;
+        private ToolStripMenuItem _enableMenuItem;
 
-        internal TrayIconService(Window parentWindow, LoggingService loggingService)
+        public bool IsClipDumpEnabled => _isClipDumpEnabled;
+
+        public event EventHandler ProcessingStateChanged;
+
+        internal TrayIconService(Window parentWindow, LoggingService loggingService, WindowsStartupService startupService)
         {
             _parentWindow = parentWindow ?? throw new ArgumentNullException(nameof(parentWindow));
             _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+            _startupService = startupService ?? throw new ArgumentNullException(nameof(startupService));
             Initialize();
         }
 
         private void Initialize()
         {
             _notifyIcon = new NotifyIcon();
-            
-            // Extract icon from current application or use embedded resource
+
+            UpdateTrayIcon();
+
+            _notifyIcon.Text = "ClipDump";
+            _notifyIcon.Visible = true;
+
+            CreateContextMenu();
+
+            // Handle mouse clicks
+            _notifyIcon.MouseClick += NotifyIcon_MouseClick;
+            _notifyIcon.MouseDoubleClick += NotifyIcon_MouseDoubleClick;
+
+            _loggingService.LogEvent("TrayIconInitialized", "System tray icon created", "");
+        }
+
+        private void UpdateTrayIcon()
+        {
             try
             {
-                var iconUri = new Uri("pack://application:,,,/Resources/Icon/clipdump.ico", UriKind.Absolute);
+                string iconPath = _isClipDumpEnabled ? "clipdump.ico" : "clipdump-disabled.ico";
+                var iconUri = new Uri($"pack://application:,,,/Resources/Icon/{iconPath}", UriKind.Absolute);
                 var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
                 if (streamInfo != null)
                 {
@@ -42,22 +74,132 @@ namespace ClipDumpRe.Services
             {
                 _notifyIcon.Icon = SystemIcons.Application;
             }
-            
-            _notifyIcon.Text = "ClipDump-Re";
-            _notifyIcon.Visible = true;
-            
-            // Create context menu
+        }
+
+        private void CreateContextMenu()
+        {
             var contextMenu = new ContextMenuStrip();
+
+            // Disable ClipDump menu
+            _disableMenuItem = new ToolStripMenuItem("Disable ClipDump");
+            var disable1Min = new ToolStripMenuItem("For 1 minute");
+            var disable5Min = new ToolStripMenuItem("For 5 minutes");
+            var disable60Min = new ToolStripMenuItem("For 60 minutes");
+            var disableUntilEnabled = new ToolStripMenuItem("Until I enable it again");
+
+            disable1Min.Click += (s, e) => DisableClipDump(TimeSpan.FromMinutes(1));
+            disable5Min.Click += (s, e) => DisableClipDump(TimeSpan.FromMinutes(5));
+            disable60Min.Click += (s, e) => DisableClipDump(TimeSpan.FromMinutes(60));
+            disableUntilEnabled.Click += (s, e) => DisableClipDump(null);
+
+            _disableMenuItem.DropDownItems.Add(disable1Min);
+            _disableMenuItem.DropDownItems.Add(disable5Min);
+            _disableMenuItem.DropDownItems.Add(disable60Min);
+            _disableMenuItem.DropDownItems.Add(disableUntilEnabled);
+
+            // Enable ClipDump menu
+            _enableMenuItem = new ToolStripMenuItem("Enable ClipDump");
+            _enableMenuItem.Click += (s, e) => EnableClipDump();
+            _enableMenuItem.Enabled = false; // Initially disabled since ClipDump is enabled
+
+            contextMenu.Items.Add(_disableMenuItem);
+            contextMenu.Items.Add(_enableMenuItem);
+            contextMenu.Items.Add(new ToolStripSeparator());
+
             var exitMenuItem = new ToolStripMenuItem("Exit");
             exitMenuItem.Click += (s, e) => ExitApplication();
             contextMenu.Items.Add(exitMenuItem);
+
             _notifyIcon.ContextMenuStrip = contextMenu;
-            
-            // Handle mouse clicks
-            _notifyIcon.MouseClick += NotifyIcon_MouseClick;
-            _notifyIcon.MouseDoubleClick += NotifyIcon_MouseDoubleClick;
-            
-            _loggingService.LogEvent("TrayIconInitialized", "System tray icon created", "");
+        }
+
+        private void DisableClipDump(TimeSpan? duration)
+        {
+            _isClipDumpEnabled = false;
+            UpdateTrayIcon();
+
+            // Stop any existing timers
+            _enableTimer?.Stop();
+            _enableTimer?.Dispose();
+            _menuUpdateTimer?.Stop();
+            _menuUpdateTimer?.Dispose();
+
+            if (duration.HasValue)
+            {
+                _disableEndTime = DateTime.Now.Add(duration.Value);
+
+                _enableTimer = new System.Windows.Forms.Timer();
+                _enableTimer.Interval = (int)duration.Value.TotalMilliseconds;
+                _enableTimer.Tick += (s, e) => EnableClipDump();
+                _enableTimer.Start();
+
+                // Update menu text every second
+                _menuUpdateTimer = new System.Windows.Forms.Timer();
+                _menuUpdateTimer.Interval = 1000;
+                _menuUpdateTimer.Tick += (s, e) => UpdateMenuText();
+                _menuUpdateTimer.Start();
+
+                _loggingService.LogEvent("ClipDumpDisabled", $"ClipDump disabled for {duration.Value.TotalMinutes} minutes", "");
+            }
+            else
+            {
+                _loggingService.LogEvent("ClipDumpDisabled", "ClipDump disabled until manually enabled", "");
+            }
+
+            UpdateMenuItems();
+            ProcessingStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void EnableClipDump()
+        {
+            _enableTimer?.Stop();
+            _enableTimer?.Dispose();
+            _enableTimer = null;
+
+            _menuUpdateTimer?.Stop();
+            _menuUpdateTimer?.Dispose();
+            _menuUpdateTimer = null;
+
+            _isClipDumpEnabled = true;
+            UpdateTrayIcon();
+            UpdateMenuItems();
+
+            _loggingService.LogEvent("ClipDumpEnabled", "ClipDump re-enabled", "");
+            ProcessingStateChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        private void UpdateMenuText()
+        {
+            if (_enableTimer != null && _enableMenuItem != null)
+            {
+                var timeRemaining = _disableEndTime - DateTime.Now;
+                if (timeRemaining.TotalSeconds > 0)
+                {
+                    string timeText = timeRemaining.TotalMinutes >= 1
+                        ? $"{(int)timeRemaining.TotalMinutes}m left"
+                        : $"{(int)timeRemaining.TotalSeconds}s left";
+                    _enableMenuItem.Text = $"Enable ClipDump ({timeText})";
+                }
+            }
+        }
+
+        private void UpdateMenuItems()
+        {
+            _disableMenuItem.Enabled = _isClipDumpEnabled;
+            _enableMenuItem.Enabled = !_isClipDumpEnabled;
+
+            if (_isClipDumpEnabled)
+            {
+                _enableMenuItem.Text = "Enable ClipDump";
+            }
+            else if (_enableTimer == null)
+            {
+                _enableMenuItem.Text = "Enable ClipDump";
+            }
+            else
+            {
+                UpdateMenuText();
+            }
         }
 
         private void NotifyIcon_MouseClick(object sender, MouseEventArgs e)
@@ -101,8 +243,22 @@ namespace ClipDumpRe.Services
             }
         }
 
+        public void SetStartupWithWindows(bool enable)
+        {
+            _startupService.SetStartupWithWindows(enable);
+        }
+
+        public bool IsStartupWithWindowsEnabled()
+        {
+            return _startupService.IsStartupWithWindowsEnabled();
+        }
+
         public void Dispose()
         {
+            _enableTimer?.Stop();
+            _enableTimer?.Dispose();
+            _menuUpdateTimer?.Stop();
+            _menuUpdateTimer?.Dispose();
             _notifyIcon?.Dispose();
         }
     }

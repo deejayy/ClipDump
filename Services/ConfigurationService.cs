@@ -7,7 +7,7 @@ namespace ClipDumpRe.Services
 {
     internal class ConfigurationService
     {
-        private const string ConfigFileName = "clipdump-re.json";
+        private const string ConfigFileName = "clipdump.json";
         private readonly string _configFilePath;
         private readonly JsonSerializerOptions _jsonOptions;
         private readonly LoggingService _loggingService;

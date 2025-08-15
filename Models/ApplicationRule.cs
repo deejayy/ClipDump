@@ -2,9 +2,9 @@ using System.Text.Json.Serialization;
 
 namespace ClipDumpRe.Models
 {
-    public class ClipboardFormatRule
+    public class ApplicationRule
     {
-        public string Format { get; set; } = string.Empty;
+        public string ExecutableFileName { get; set; } = string.Empty;
         public int MaxSizeBytes { get; set; } = 0; // 0 = no limit
         public bool ShouldIgnore { get; set; } = false;
         public string RelativeDestinationDirectory { get; set; } = string.Empty; // empty = use default

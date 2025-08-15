@@ -1,17 +1,28 @@
 using System.Text.Json.Serialization;
+using ClipDumpRe.Services;
 
 namespace ClipDumpRe.Models
 {
     internal class Settings
     {
-        public string WorkingDirectory { get; set; } = @".\data";
-        public int MaxFileSizeBytes { get; set; } = 150 * 1024; // 150KB
+        public string WorkingDirectory { get; set; } = @"%USERPROFILE%\Documents\Clipboard Dumps";
+        public int MaxFileSizeBytes { get; set; } = 8192 * 1024; // 8MB
+        public bool StartWithWindows { get; set; } = false;
         public List<ClipboardFormatRule> FormatRules { get; set; } = new List<ClipboardFormatRule>
         {
             // Legacy ignored formats moved from hardcoded HashSet
             new ClipboardFormatRule { Format = "DeviceIndependentBitmap", ShouldIgnore = true },
             new ClipboardFormatRule { Format = "Format17", ShouldIgnore = true }
         };
+
+        public List<ApplicationRule> ApplicationRules { get; set; } = new List<ApplicationRule>
+        {
+            // Common applications that might generate unwanted clipboard content
+            new ApplicationRule { ExecutableFileName = "1password.exe", ShouldIgnore = true },
+            new ApplicationRule { ExecutableFileName = "keepassxc.exe", ShouldIgnore = true },
+        };
+
+        public Theme Theme { get; set; } = Theme.Light;
 
         // Property to handle kilobyte conversion for UI
         [JsonIgnore]

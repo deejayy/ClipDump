@@ -5,51 +5,288 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:clipdump_re"
         mc:Ignorable="d"
-        Title="ClipDump-Re" Height="450" Width="800"
+        Title="ClipDump"
+        Height="450"
+        Width="800"
         Icon="Resources/Icon/clipdump.png">
-    
+
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
-        <!-- Working Directory Row -->
-        <Grid Grid.Row="0" Margin="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Label Grid.Column="0" Content="Working directory:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-            <TextBox Grid.Column="1" Name="WorkingDirectoryTextBox" VerticalAlignment="Center"/>
-        </Grid>
-        
-        <!-- Max File Size Row -->
-        <Grid Grid.Row="1" Margin="10">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Label Grid.Column="0" Content="Max File Size (KB):" VerticalAlignment="Center" Margin="0,0,10,0"/>
-            <TextBox Grid.Column="1" Name="MaxFileSizeTextBox" VerticalAlignment="Center"/>
-        </Grid>
-        
-        <!-- DataGrid Row -->
-        <DataGrid Grid.Row="2" Name="FormatDataGrid" Margin="10" AutoGenerateColumns="False" CanUserAddRows="True" CanUserSortColumns="False">
-            <DataGrid.Columns>
-                <DataGridTextColumn Header="Format" Binding="{Binding Format}" Width="*"/>
-                <DataGridTextColumn Header="Max Size (KB)" Binding="{Binding MaxSizeKB}" Width="*"/>
-                <DataGridCheckBoxColumn Header="Ignored" Binding="{Binding ShouldIgnore}" Width="Auto"/>
-                <DataGridTextColumn Header="Directory" Binding="{Binding RelativeDestinationDirectory}" Width="*"/>
-            </DataGrid.Columns>
-        </DataGrid>
 
-        <!-- Buttons Row -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="10" HorizontalAlignment="Left">
-            <Button Name="AddNewRuleButton" Content="Add New Rule" Margin="0,0,10,0" Padding="10,5" Click="AddNewRuleButton_Click"/>
-            <Button Name="RemoveRuleButton" Content="Remove Rule" Padding="10,5" Click="RemoveRuleButton_Click"/>
-        </StackPanel>
+        <!-- TabControl Row -->
+        <TabControl Grid.Row="0"
+                    Margin="10"
+                    Name="MainTabControl">
+            <TabItem Header="Global Options">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Working Directory Row -->
+                    <Grid Grid.Row="0"
+                          Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0"
+                               Content="Working directory:"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                        <TextBox Grid.Column="1"
+                                 Name="WorkingDirectoryTextBox"
+                                 VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Max File Size Row -->
+                    <Grid Grid.Row="1"
+                          Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0"
+                               Content="Max File Size (KB):"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                        <TextBox Grid.Column="1"
+                                 Name="MaxFileSizeTextBox"
+                                 VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Start with Windows Row -->
+                    <Grid Grid.Row="2"
+                          Margin="10">
+                        <CheckBox Name="StartWithWindowsCheckBox"
+                                  Content="Start with Windows"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Theme Toggle Row -->
+                    <Grid Grid.Row="3"
+                          Margin="10">
+                        <Button Name="ThemeToggleButton"
+                                Content="Dark Mode"
+                                HorizontalAlignment="Left"
+                                Padding="10,5"
+                                Click="ThemeToggleButton_Click"/>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Clipboard Format Rules">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- DataGrid -->
+                    <DataGrid Grid.Row="0"
+                              Name="FormatDataGrid"
+                              Margin="10"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="True"
+                              CanUserSortColumns="False"
+                              SelectionMode="Extended">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Clipboard Data Format"
+                                                Binding="{Binding Format}"
+                                                Width="*"/>
+                            <DataGridTextColumn Header="Max Size (KB)"
+                                                Binding="{Binding MaxSizeKB}"
+                                                Width="100"/>
+                            <DataGridCheckBoxColumn Header="Ignored"
+                                                    Binding="{Binding ShouldIgnore}"
+                                                    Width="60"/>
+                            <DataGridTextColumn Header="Directory"
+                                                Binding="{Binding RelativeDestinationDirectory}"
+                                                Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Buttons -->
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                Margin="10"
+                                HorizontalAlignment="Left">
+                        <Button Name="AddNewRuleButton"
+                                Content="Add New Rule"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="AddNewRuleButton_Click"/>
+                        <Button Name="RemoveRuleButton"
+                                Content="Remove Selected Rules"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="RemoveRuleButton_Click"/>
+                        <Button Name="CleanupUnnecessaryRulesButton"
+                                Content="Cleanup Unnecessary Rules"
+                                Padding="10,5"
+                                Click="CleanupUnnecessaryRulesButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Application Rules">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- DataGrid -->
+                    <DataGrid Grid.Row="0"
+                              Name="ApplicationDataGrid"
+                              Margin="10"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="True"
+                              CanUserSortColumns="False"
+                              SelectionMode="Extended">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Executable .exe File Name"
+                                                Binding="{Binding ExecutableFileName}"
+                                                Width="*"/>
+                            <DataGridTextColumn Header="Max Size (KB)"
+                                                Binding="{Binding MaxSizeKB}"
+                                                Width="100"/>
+                            <DataGridCheckBoxColumn Header="Ignored"
+                                                    Binding="{Binding ShouldIgnore}"
+                                                    Width="60"/>
+                            <DataGridTextColumn Header="Directory"
+                                                Binding="{Binding RelativeDestinationDirectory}"
+                                                Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Buttons -->
+                    <StackPanel Grid.Row="1"
+                                Orientation="Horizontal"
+                                Margin="10"
+                                HorizontalAlignment="Left">
+                        <Button Name="AddNewApplicationRuleButton"
+                                Content="Add New Rule"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="AddNewApplicationRuleButton_Click"/>
+                        <Button Name="RemoveApplicationRuleButton"
+                                Content="Remove Selected Rules"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="RemoveApplicationRuleButton_Click"/>
+                        <Button Name="CleanupUnnecessaryApplicationRulesButton"
+                                Content="Cleanup Unnecessary Rules"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="CleanupUnnecessaryApplicationRulesButton_Click"/>
+                        <Button Name="AddRunningAppButton"
+                                Content="Add .exe from running apps"
+                                Padding="10,5"
+                                Click="AddRunningAppButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Seen Formats">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Instructions -->
+                    <TextBlock Grid.Row="0"
+                               Margin="10"
+                               TextWrapping="Wrap"
+                               Text="This tab shows all clipboard formats that have been detected. You can double-click a format or select one or more formats (using Ctrl+click or Shift+click) and click the button to add them to the format rules (they will be set to 'ignore' by default). The list refreshes automatically when clipboard content is processed."/>
+
+                    <!-- DataGrid -->
+                    <DataGrid Grid.Row="1"
+                              Name="SeenFormatsDataGrid"
+                              Margin="10"
+                              AutoGenerateColumns="False"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              IsReadOnly="True"
+                              SelectionMode="Extended">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Format Name"
+                                                Binding="{Binding FormatName}"
+                                                Width="*"/>
+                            <DataGridTextColumn Header="First Seen"
+                                                Binding="{Binding FirstSeenDate, StringFormat=yyyy-MM-dd HH:mm:ss}"
+                                                Width="140"/>
+                            <DataGridTextColumn Header="Last Seen"
+                                                Binding="{Binding LastSeenDate, StringFormat=yyyy-MM-dd HH:mm:ss}"
+                                                Width="140"/>
+                            <DataGridTextColumn Header="Count"
+                                                Binding="{Binding SeenCount}"
+                                                Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Buttons -->
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                Margin="10"
+                                HorizontalAlignment="Left">
+                        <Button Name="AddFormatToRulesButton"
+                                Content="Add Selected to Format Rules"
+                                Margin="0,0,10,0"
+                                Padding="10,5"
+                                Click="AddFormatToRulesButton_Click"/>
+                        <Button Name="ClearHistoryButton"
+                                Content="Clear History"
+                                Padding="10,5"
+                                Click="ClearHistoryButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- Control Buttons Row -->
+        <Grid Grid.Row="1"
+              Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            
+            <!-- About button on the left -->
+            <Button Grid.Column="0"
+                    Name="AboutButton"
+                    Content="About"
+                    Padding="10,5"
+                    Click="AboutButton_Click"/>
+            
+            <!-- Other buttons on the right -->
+            <StackPanel Grid.Column="2"
+                        Orientation="Horizontal">
+                <Button Name="DisableProcessingButton"
+                        Content="Disable Processing"
+                        Margin="0,0,10,0"
+                        Padding="10,5"
+                        Click="DisableProcessingButton_Click"/>
+                <Button Name="EnableProcessingButton"
+                        Content="Enable Processing"
+                        Margin="0,0,10,0"
+                        Padding="10,5"
+                        Click="EnableProcessingButton_Click"/>
+                <Button Name="QuitButton"
+                        Content="Quit ClipDump"
+                        Padding="10,5"
+                        Click="QuitButton_Click"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>

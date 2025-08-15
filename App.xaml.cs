@@ -18,7 +18,7 @@ public partial class App : System.Windows.Application
 
         if (!_singleInstanceService.IsFirstInstance())
         {
-            System.Windows.MessageBox.Show("ClipDump-Re is already running.", "Application Already Running", 
+            System.Windows.MessageBox.Show("ClipDump is already running.", "Application Already Running",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
