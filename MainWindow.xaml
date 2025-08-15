@@ -214,13 +214,13 @@
                                                 Width="*"/>
                             <DataGridTextColumn Header="First Seen"
                                                 Binding="{Binding FirstSeenDate, StringFormat=yyyy-MM-dd HH:mm:ss}"
-                                                Width="140"/>
+                                                Width="160"/>
                             <DataGridTextColumn Header="Last Seen"
                                                 Binding="{Binding LastSeenDate, StringFormat=yyyy-MM-dd HH:mm:ss}"
-                                                Width="140"/>
+                                                Width="160"/>
                             <DataGridTextColumn Header="Count"
                                                 Binding="{Binding SeenCount}"
-                                                Width="80"/>
+                                                Width="50"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
