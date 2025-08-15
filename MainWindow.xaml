@@ -269,14 +269,14 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            
+
             <!-- About button on the left -->
             <Button Grid.Column="0"
                     Name="AboutButton"
                     Content="About"
                     Padding="10,5"
                     Click="AboutButton_Click"/>
-            
+
             <!-- Other buttons on the right -->
             <StackPanel Grid.Column="2"
                         Orientation="Horizontal">
