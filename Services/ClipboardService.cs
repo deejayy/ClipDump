@@ -166,19 +166,38 @@ namespace ClipDumpRe.Services
             await _loggingService.LogEventAsync("ClipboardProcessingStarted", $"Processing {formats.Length} clipboard formats",
                 $"Output directory: {baseOutputDir}, Source app: {appInfo.ProcessName}");
 
-            int savedCount = 0;
-            int skippedCount = 0;
-
+            // Filter out ignored formats first
+            var validFormats = new List<string>();
+            int ignoredCount = 0;
+            
             foreach (string format in formats)
             {
                 var formatRule = GetFormatRule(format);
-                
                 if (await ShouldIgnoreFormatAsync(formatRule, format))
                 {
-                    skippedCount++;
+                    ignoredCount++;
                     continue;
                 }
+                validFormats.Add(format);
+            }
 
+            // Deduplicate content across remaining formats
+            var deduplicatedFormats = await DeduplicateClipboardFormatsAsync(dataObject, validFormats.ToArray());
+            int duplicateCount = validFormats.Count - deduplicatedFormats.Count;
+
+            if (duplicateCount > 0)
+            {
+                await _loggingService.LogEventAsync("ClipboardContentDeduplicated", 
+                    $"Removed {duplicateCount} duplicate content formats",
+                    $"Original formats: {validFormats.Count}, After deduplication: {deduplicatedFormats.Count}");
+            }
+
+            int savedCount = 0;
+            int skippedCount = ignoredCount;
+
+            foreach (string format in deduplicatedFormats)
+            {
+                var formatRule = GetFormatRule(format);
                 var result = await ProcessSingleFormatAsync(dataObject, format, formatRule, applicationRule, timestamp, baseOutputDir, appInfo);
                 if (result.Success)
                     savedCount++;
@@ -187,7 +206,102 @@ namespace ClipDumpRe.Services
             }
 
             await _loggingService.LogEventAsync("ClipboardProcessingCompleted", $"Clipboard processing finished",
-                $"Saved: {savedCount}, Skipped: {skippedCount}, Total formats: {formats.Length}, Source app: {appInfo.ProcessName}");
+                $"Saved: {savedCount}, Skipped: {skippedCount} (Ignored: {ignoredCount}, Duplicates: {duplicateCount}), Total formats: {formats.Length}, Source app: {appInfo.ProcessName}");
+        }
+
+        private async Task<List<string>> DeduplicateClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats)
+        {
+            var contentHashes = new Dictionary<string, string>(); // hash -> format name
+            var uniqueFormats = new List<string>();
+            var duplicateFormats = new List<string>();
+
+            foreach (string format in formats)
+            {
+                try
+                {
+                    var data = dataObject.GetData(format);
+                    if (data == null)
+                    {
+                        uniqueFormats.Add(format);
+                        continue;
+                    }
+
+                    string contentHash = CalculateContentHash(data);
+                    
+                    if (contentHashes.ContainsKey(contentHash))
+                    {
+                        // Found duplicate content
+                        string existingFormat = contentHashes[contentHash];
+                        duplicateFormats.Add(format);
+                        
+                        await _loggingService.LogEventAsync("DuplicateContentDetected", 
+                            $"Format '{format}' has identical content to '{existingFormat}'",
+                            $"Content hash: {contentHash}");
+                    }
+                    else
+                    {
+                        // Unique content
+                        contentHashes[contentHash] = format;
+                        uniqueFormats.Add(format);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // If we can't get data or calculate hash, keep the format to be safe
+                    uniqueFormats.Add(format);
+                    await _loggingService.LogEventAsync("DeduplicationError", 
+                        $"Error during deduplication for format '{format}', keeping format",
+                        $"Error: {ex.Message}");
+                }
+            }
+
+            if (duplicateFormats.Count > 0)
+            {
+                await _loggingService.LogEventAsync("DeduplicationSummary", 
+                    $"Deduplication complete: {uniqueFormats.Count} unique, {duplicateFormats.Count} duplicates removed",
+                    $"Duplicate formats: {string.Join(", ", duplicateFormats)}");
+            }
+
+            return uniqueFormats;
+        }
+
+        private string CalculateContentHash(object data)
+        {
+            using (var sha256 = System.Security.Cryptography.SHA256.Create())
+            {
+                byte[] bytes = null;
+                
+                if (data is string textData)
+                {
+                    bytes = System.Text.Encoding.UTF8.GetBytes(textData);
+                }
+                else if (data is byte[] byteData)
+                {
+                    bytes = byteData;
+                }
+                else if (data is System.IO.MemoryStream memoryStream)
+                {
+                    bytes = memoryStream.ToArray();
+                }
+                else if (data is System.IO.Stream stream)
+                {
+                    using (var memStream = new System.IO.MemoryStream())
+                    {
+                        stream.Position = 0;
+                        stream.CopyTo(memStream);
+                        bytes = memStream.ToArray();
+                    }
+                }
+                else
+                {
+                    // For other types, try to serialize to string and then to bytes
+                    string serialized = data.ToString() ?? "";
+                    bytes = System.Text.Encoding.UTF8.GetBytes(serialized);
+                }
+
+                var hash = sha256.ComputeHash(bytes);
+                return Convert.ToBase64String(hash);
+            }
         }
 
         private ClipboardFormatRule GetFormatRule(string format)
