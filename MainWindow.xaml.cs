@@ -59,9 +59,9 @@ public partial class MainWindow : Window
         _clearUrlsService = new ClearUrlsService(_loggingService);
 
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
+        InitializeTrayIcon(); // Initialize tray icon BEFORE loading settings
         LoadSettings();
         AttachEventHandlers();
-        InitializeTrayIcon();
         LoadSeenFormats();
         InitializeClearUrlsService();
     }
@@ -125,7 +125,7 @@ public partial class MainWindow : Window
         _loggingService.LogEvent("SettingsLoadStarted", "Loading settings from configuration", "");
         _settings = await _configurationService.LoadSettingsAsync();
 
-        // Initialize clipboard service with loaded settings, foreground app service, tray icon service, format cache service, and clear URLs service
+        // Initialize clipboard service with loaded settings and the already-created tray icon service
         _clipboardService = new ClipboardService(_settings, _loggingService, _foregroundApplicationService, _trayIconService, _formatCacheService, _clearUrlsService);
 
         // Populate UI controls with loaded settings
@@ -262,17 +262,10 @@ public partial class MainWindow : Window
         // Subscribe to state changes from tray icon service
         _trayIconService.ProcessingStateChanged += OnProcessingStateChanged;
 
-        // Sync the startup setting with current registry state
-        if (_settings != null)
-        {
-            bool registryEnabled = _startupService.IsStartupWithWindowsEnabled();
-            if (_settings.StartWithWindows != registryEnabled)
-            {
-                _startupService.SetStartupWithWindows(_settings.StartWithWindows);
-                _loggingService.LogEvent("StartupSettingSynced", "Synchronized startup setting with registry",
-                    $"Setting: {_settings.StartWithWindows}, Registry was: {registryEnabled}");
-            }
-        }
+        // Update button states based on initial tray icon service state
+        UpdateProcessingButtonStates();
+
+        _loggingService.LogEvent("TrayIconServiceInitialized", "Tray icon service created and ready", "");
     }
 
     private void OnProcessingStateChanged(object sender, EventArgs e)

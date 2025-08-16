@@ -22,6 +22,7 @@ namespace ClipDumpRe.Services
         private bool _isClipDumpEnabled = true;
         private ToolStripMenuItem _disableMenuItem;
         private ToolStripMenuItem _enableMenuItem;
+        private string _lastSavedLocation; // Track last saved file or directory
 
         public bool IsClipDumpEnabled => _isClipDumpEnabled;
 
@@ -80,6 +81,13 @@ namespace ClipDumpRe.Services
         {
             var contextMenu = new ContextMenuStrip();
 
+            // Open Last Dump menu item
+            var openLastDumpMenuItem = new ToolStripMenuItem("Open Last Dump");
+            openLastDumpMenuItem.Click += (s, e) => OpenLastDump();
+            openLastDumpMenuItem.Enabled = !string.IsNullOrEmpty(_lastSavedLocation);
+            contextMenu.Items.Add(openLastDumpMenuItem);
+            contextMenu.Items.Add(new ToolStripSeparator());
+
             // Disable ClipDump menu
             _disableMenuItem = new ToolStripMenuItem("Disable ClipDump");
             var disable1Min = new ToolStripMenuItem("For 1 minute");
@@ -111,6 +119,66 @@ namespace ClipDumpRe.Services
             contextMenu.Items.Add(exitMenuItem);
 
             _notifyIcon.ContextMenuStrip = contextMenu;
+        }
+
+        private void OpenLastDump()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(_lastSavedLocation))
+                {
+                    _loggingService.LogEvent("OpenLastDumpFailed", "No last saved location available", "");
+                    return;
+                }
+
+                // Expand environment variables and resolve to absolute path
+                string expandedPath = Environment.ExpandEnvironmentVariables(_lastSavedLocation);
+                string absolutePath = System.IO.Path.GetFullPath(expandedPath);
+
+                if (Directory.Exists(absolutePath))
+                {
+                    // Open directory
+                    System.Diagnostics.Process.Start("explorer.exe", absolutePath);
+                    _loggingService.LogEvent("LastDumpDirectoryOpened", "Last dump directory opened", 
+                        $"Path: {absolutePath}");
+                }
+                else if (File.Exists(absolutePath))
+                {
+                    // Open directory and select file
+                    string directoryPath = System.IO.Path.GetDirectoryName(absolutePath);
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{absolutePath}\"");
+                    _loggingService.LogEvent("LastDumpFileOpened", "Last dump file opened and selected", 
+                        $"File: {absolutePath}");
+                }
+                else
+                {
+                    _loggingService.LogEvent("OpenLastDumpFailed", "Last saved location no longer exists", 
+                        $"Path: {absolutePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _loggingService.LogEvent("OpenLastDumpError", "Error opening last dump location", 
+                    $"Error: {ex.Message}");
+            }
+        }
+
+        public void UpdateLastSavedLocation(string location)
+        {
+            _lastSavedLocation = location;
+            
+            // Update the menu item state
+            if (_notifyIcon?.ContextMenuStrip?.Items.Count > 0)
+            {
+                var openLastDumpMenuItem = _notifyIcon.ContextMenuStrip.Items[0] as ToolStripMenuItem;
+                if (openLastDumpMenuItem != null)
+                {
+                    openLastDumpMenuItem.Enabled = !string.IsNullOrEmpty(_lastSavedLocation);
+                }
+            }
+            
+            _loggingService.LogEvent("LastSavedLocationUpdated", "Last saved location updated", 
+                $"Location: {location}");
         }
 
         private void DisableClipDump(TimeSpan? duration)

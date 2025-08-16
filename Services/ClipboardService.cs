@@ -22,12 +22,12 @@ namespace ClipDumpRe.Services
 
         public ClipboardService(Settings settings, LoggingService loggingService, ForegroundApplicationService foregroundApplicationService, TrayIconService trayIconService, FormatCacheService formatCacheService, ClearUrlsService clearUrlsService)
         {
-            _settings = settings;
-            _loggingService = loggingService;
-            _foregroundApplicationService = foregroundApplicationService;
-            _trayIconService = trayIconService;
-            _formatCacheService = formatCacheService;
-            _clearUrlsService = clearUrlsService;
+            _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+            _loggingService = loggingService ?? throw new ArgumentNullException(nameof(loggingService));
+            _foregroundApplicationService = foregroundApplicationService ?? throw new ArgumentNullException(nameof(foregroundApplicationService));
+            _trayIconService = trayIconService; // Should not be null with proper initialization order
+            _formatCacheService = formatCacheService ?? throw new ArgumentNullException(nameof(formatCacheService));
+            _clearUrlsService = clearUrlsService ?? throw new ArgumentNullException(nameof(clearUrlsService));
         }
 
         public async Task DumpClipboardContentAsync()
@@ -390,6 +390,26 @@ namespace ClipDumpRe.Services
                 await _loggingService.LogEventAsync("FileSaved", $"Clipboard data saved to file",
                     $"Format: {format}, File: {Path.GetFileName(filePath)}, Size: {clipboardDataSize} bytes, Directory: {Path.GetRelativePath(baseOutputDir, outputDir)}, Source: {appInfo.ProcessName}");
                 
+                // Update last saved location for tray icon service
+                if (_trayIconService != null)
+                {
+                    // Check if custom directories are set in rules - if so, use prefix naming
+                    bool hasCustomDirectory = (formatRule != null && !string.IsNullOrWhiteSpace(formatRule.RelativeDestinationDirectory)) ||
+                                            (applicationRule != null && !string.IsNullOrWhiteSpace(applicationRule.RelativeDestinationDirectory));
+                    
+                    if (_settings.UseTimestampSubdirectories && !hasCustomDirectory)
+                    {
+                        // For timestamp directories, pass the timestamp subdirectory path
+                        string timestampDir = Path.Combine(outputDir, timestamp);
+                        _trayIconService.UpdateLastSavedLocation(timestampDir);
+                    }
+                    else
+                    {
+                        // For regular saves or custom directories, pass the full file path
+                        _trayIconService.UpdateLastSavedLocation(filePath);
+                    }
+                }
+
                 return (true, "Saved successfully");
             }
             catch (Exception ex)
