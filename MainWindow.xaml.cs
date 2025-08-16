@@ -59,9 +59,9 @@ public partial class MainWindow : Window
         _clearUrlsService = new ClearUrlsService(_loggingService);
 
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
-        InitializeTrayIcon(); // Initialize tray icon BEFORE loading settings
-        LoadSettings();
-        AttachEventHandlers();
+        InitializeTrayIcon();
+        AttachEventHandlers(); // Attach early for proper setup
+        LoadSettings(); // This will detach/reattach handlers internally
         LoadSeenFormats();
         InitializeClearUrlsService();
     }
@@ -123,6 +123,10 @@ public partial class MainWindow : Window
     private async void LoadSettings()
     {
         _loggingService.LogEvent("SettingsLoadStarted", "Loading settings from configuration", "");
+        
+        // Detach event handlers to prevent spurious events during UI population
+        DetachEventHandlers();
+        
         _settings = await _configurationService.LoadSettingsAsync();
 
         // Initialize clipboard service with loaded settings and the already-created tray icon service
@@ -136,6 +140,9 @@ public partial class MainWindow : Window
         UseTimestampSubdirectoriesCheckBox.IsChecked = _settings.UseTimestampSubdirectories;
         FormatDataGrid.ItemsSource = _settings.FormatRules;
         ApplicationDataGrid.ItemsSource = _settings.ApplicationRules;
+
+        // Reattach event handlers after UI population is complete
+        AttachEventHandlers();
 
         _loggingService.LogEvent("SettingsLoadCompleted", "Settings applied to UI controls", $"Format rules: {_settings.FormatRules.Count}, Application rules: {_settings.ApplicationRules.Count}");
 
@@ -164,6 +171,20 @@ public partial class MainWindow : Window
         SeenFormatsDataGrid.MouseDoubleClick += OnSeenFormatsDataGridDoubleClick;
 
         _loggingService.LogEvent("EventHandlersAttached", "UI event handlers attached", "");
+    }
+
+    private void DetachEventHandlers()
+    {
+        WorkingDirectoryTextBox.TextChanged -= OnSettingsChanged;
+        MaxFileSizeTextBox.TextChanged -= OnSettingsChanged;
+        MinClipboardDataSizeTextBox.TextChanged -= OnSettingsChanged;
+        StartWithWindowsCheckBox.Checked -= OnStartWithWindowsChanged;
+        StartWithWindowsCheckBox.Unchecked -= OnStartWithWindowsChanged;
+        UseTimestampSubdirectoriesCheckBox.Checked -= OnUseTimestampSubdirectoriesChanged;
+        UseTimestampSubdirectoriesCheckBox.Unchecked -= OnUseTimestampSubdirectoriesChanged;
+        FormatDataGrid.CellEditEnding -= OnDataGridCellEditEnding;
+        ApplicationDataGrid.CellEditEnding -= OnApplicationDataGridCellEditEnding;
+        SeenFormatsDataGrid.MouseDoubleClick -= OnSeenFormatsDataGridDoubleClick;
     }
 
     private async void OnSettingsChanged(object sender, EventArgs e)

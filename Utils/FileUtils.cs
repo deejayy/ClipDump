@@ -24,22 +24,68 @@ namespace ClipDumpRe.Utils
         {
             return format.ToLower() switch
             {
+                // Text formats
                 "text" or "unicodetext" or "oemtext" or "system.string" => "txt",
-                "html format" => "html",
+
+                // HTML formats
+                "text/html" or "html format" or "text/_moz_htmlcontext" => "html",
+
+                // Rich text and document formats
                 "rich text format" => "rtf",
                 "csv" => "csv",
-                "xml" => "xml",
-                "bitmap" or "system.drawing.bitmap" => "png",
-                "png" => "png",
+                "xml" or "xml spreadsheet" => "xml",
+                "text/calendar" => "ics",
+
+                // Image formats
+                "bitmap" or "system.drawing.bitmap" or "system.windows.media.imaging.bitmapsource" or "deviceindependentbitmap" => "png",
+                "png" or "application/x-moz-nativeimage" => "png",
                 "jfif" or "jpeg" => "jpg",
                 "gif" => "gif",
                 "tiff" => "tiff",
-                "filedrop" or "shell idlist array" => "txt",
+                "format17" => "png", // Windows clipboard format for PNG
+
+                // Vector graphics
+                "scalable vector graphics" or "scalable vector graphics for adobe muse" or "image/svg+xml" or "image/x-inkscape-svg" => "svg",
+                "encapsulated postscript" => "eps",
+                "metafilepict" or "enhancedmetafile" or "system.drawing.imaging.metafile" => "emf",
+
+                // Adobe formats
+                "adobe ai3" => "ai",
+                "adobe photoshop image" or "photoshop dib layer" or "photoshop dib layer x" => "psd",
+                "photoshop text" or "photoshop clip source" => "txt",
+                "adobe text engine 2.0" => "txt",
+                "portable document format" => "pdf",
+                "palette" => "pal",
+
+                // Microsoft Office formats
+                "biff12" => "xlsx",
+                "biff8" => "xls",
+                "biff5" => "xls",
+
+                // File and URL formats
+                "filedrop" or "filenamew" or "filename" => "txt",
+                "uniformresourcelocatorw" or "application/x-moz-file-promise-url" or "text/x-moz-url-priv" => "txt",
+                "application/x-moz-file-promise-dest-filename" => "txt",
+
+                // Audio formats
                 "wave" => "wav",
+
+                // Data formats
+                "datainterchangeformat" => "dif",
+                "embed source" or "object descriptor" => "ole",
+
+                // Specialized formats
+                "art::text clipformat" or "art::gvml clipformat" => "pptx",
+                "chromium internal source url" => "txt",
+                "inshelldragloop" => "txt",
+
+                // Fallback patterns
                 _ when format.Contains("image") => "png",
                 _ when format.Contains("audio") => "wav",
                 _ when format.Contains("text") => "txt",
                 _ when format.Contains("html") => "html",
+                _ when format.Contains("svg") => "svg",
+                _ when format.Contains("pdf") => "pdf",
                 _ => "dat"
             };
         }
