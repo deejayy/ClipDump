@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly FormatCacheService _formatCacheService;
     private readonly ApplicationEnumerationService _applicationEnumerationService;
     private readonly WindowsStartupService _startupService;
+    private readonly ClearUrlsService _clearUrlsService;
     private ClipboardService _clipboardService;
     private TrayIconService _trayIconService;
     private Settings _settings;
@@ -55,12 +56,14 @@ public partial class MainWindow : Window
         _formatCacheService = new FormatCacheService(_loggingService);
         _applicationEnumerationService = new ApplicationEnumerationService(_loggingService);
         _startupService = new WindowsStartupService(_loggingService);
+        _clearUrlsService = new ClearUrlsService(_loggingService);
 
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
         LoadSettings();
         AttachEventHandlers();
         InitializeTrayIcon();
         LoadSeenFormats();
+        InitializeClearUrlsService();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -112,13 +115,18 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
+    private async void InitializeClearUrlsService()
+    {
+        await _clearUrlsService.InitializeAsync();
+    }
+
     private async void LoadSettings()
     {
         _loggingService.LogEvent("SettingsLoadStarted", "Loading settings from configuration", "");
         _settings = await _configurationService.LoadSettingsAsync();
 
-        // Initialize clipboard service with loaded settings, foreground app service, tray icon service, and format cache service
-        _clipboardService = new ClipboardService(_settings, _loggingService, _foregroundApplicationService, _trayIconService, _formatCacheService);
+        // Initialize clipboard service with loaded settings, foreground app service, tray icon service, format cache service, and clear URLs service
+        _clipboardService = new ClipboardService(_settings, _loggingService, _foregroundApplicationService, _trayIconService, _formatCacheService, _clearUrlsService);
 
         // Populate UI controls with loaded settings
         WorkingDirectoryTextBox.Text = _settings.WorkingDirectory;

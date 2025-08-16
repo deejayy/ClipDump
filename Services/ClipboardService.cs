@@ -18,14 +18,16 @@ namespace ClipDumpRe.Services
         private readonly ForegroundApplicationService _foregroundApplicationService;
         private readonly TrayIconService _trayIconService;
         private readonly FormatCacheService _formatCacheService;
+        private readonly ClearUrlsService _clearUrlsService;
 
-        public ClipboardService(Settings settings, LoggingService loggingService, ForegroundApplicationService foregroundApplicationService, TrayIconService trayIconService, FormatCacheService formatCacheService)
+        public ClipboardService(Settings settings, LoggingService loggingService, ForegroundApplicationService foregroundApplicationService, TrayIconService trayIconService, FormatCacheService formatCacheService, ClearUrlsService clearUrlsService)
         {
             _settings = settings;
             _loggingService = loggingService;
             _foregroundApplicationService = foregroundApplicationService;
             _trayIconService = trayIconService;
             _formatCacheService = formatCacheService;
+            _clearUrlsService = clearUrlsService;
         }
 
         public async Task DumpClipboardContentAsync()
@@ -366,6 +368,9 @@ namespace ClipDumpRe.Services
 
                 await FileUtils.SaveClipboardDataAsync(filePath, format, data);
 
+                // Check for URL and save cleaned version if applicable
+                await ProcessUrlIfApplicableAsync(data, filePath, outputDir, timestamp, format, formatRule, applicationRule);
+
                 // Get file size after saving
                 long fileDataSize = new FileInfo(filePath).Length;
                 string relativeFilePath = Path.GetRelativePath(baseOutputDir, filePath);
@@ -392,6 +397,110 @@ namespace ClipDumpRe.Services
                 await _loggingService.LogEventAsync("FileSaveError", $"Error saving clipboard format", $"Format: {format}, Error: {ex.Message}");
                 Debug.WriteLine($"Error saving format '{format}': {ex.Message}");
                 return (false, ex.Message);
+            }
+        }
+
+        private bool IsUrl(string text)
+        {
+            // Quick length check first - URLs longer than 2048 characters are uncommon
+            if (string.IsNullOrWhiteSpace(text) || text.Length > 2048)
+                return false;
+
+            // Trim whitespace for checking
+            text = text.Trim();
+
+            // Check for http:// or https:// at the beginning
+            return text.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+                   text.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<string> LogAndCleanUrlAsync(string url)
+        {
+            await _loggingService.LogEventAsync("UrlDetected", "URL found in clipboard data", $"Original URL: {url}");
+
+            try
+            {
+                // Use ClearUrlsService for comprehensive URL cleaning
+                string cleanUrl = await _clearUrlsService.CleanUrlAsync(url);
+                
+                if (cleanUrl != url)
+                {
+                    await _loggingService.LogEventAsync("UrlCleanedByClearUrls", "URL cleaned by ClearURLs service", 
+                        $"Original: {url}, Clean: {cleanUrl}");
+                }
+                else
+                {
+                    // Fallback to basic cleaning if ClearURLs didn't change anything
+                    var uri = new Uri(url.Trim());
+                    cleanUrl = $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}";
+                    
+                    await _loggingService.LogEventAsync("UrlCleanedBasic", "URL query parameters removed (basic cleaning)", 
+                        $"Original: {url}, Clean: {cleanUrl}");
+                }
+                
+                return cleanUrl;
+            }
+            catch (Exception ex)
+            {
+                await _loggingService.LogEventAsync("UrlCleaningError", "Error cleaning URL", 
+                    $"URL: {url}, Error: {ex.Message}");
+                return url; // Return original if cleaning fails
+            }
+        }
+
+        private async Task ProcessUrlIfApplicableAsync(object data, string originalFilePath, string outputDir, string timestamp, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule)
+        {
+            // Only process string data that could contain URLs
+            if (!(data is string textData))
+                return;
+
+            if (!IsUrl(textData))
+                return;
+
+            try
+            {
+                string cleanUrl = await LogAndCleanUrlAsync(textData);
+                
+                // Build clean URL file path using the same logic as original file
+                string cleanUrlFilePath = BuildCleanUrlFilePath(outputDir, timestamp, format, data, formatRule, applicationRule);
+
+                // Save cleaned URL
+                await File.WriteAllTextAsync(cleanUrlFilePath, cleanUrl);
+
+                await _loggingService.LogEventAsync("CleanUrlSaved", "Cleaned URL saved to separate file",
+                    $"Original file: {Path.GetFileName(originalFilePath)}, Clean URL file: {Path.GetFileName(cleanUrlFilePath)}");
+            }
+            catch (Exception ex)
+            {
+                await _loggingService.LogEventAsync("UrlProcessingError", "Error processing URL data", 
+                    $"Format: {format}, Error: {ex.Message}");
+            }
+        }
+
+        private string BuildCleanUrlFilePath(string outputDir, string timestamp, string format, object data, ClipboardFormatRule formatRule = null, ApplicationRule applicationRule = null)
+        {
+            string safeFormatName = FileUtils.SanitizeFileName(format);
+            string extension = FileUtils.GetFileExtension(format, data);
+            
+            // Check if custom directories are set in rules - if so, use prefix naming
+            bool hasCustomDirectory = (formatRule != null && !string.IsNullOrWhiteSpace(formatRule.RelativeDestinationDirectory)) ||
+                                    (applicationRule != null && !string.IsNullOrWhiteSpace(applicationRule.RelativeDestinationDirectory));
+            
+            if (_settings.UseTimestampSubdirectories && !hasCustomDirectory)
+            {
+                // Create subdirectory based on timestamp
+                string timestampDir = Path.Combine(outputDir, timestamp);
+                if (!Directory.Exists(timestampDir))
+                    Directory.CreateDirectory(timestampDir);
+                
+                string fileName = $"{safeFormatName}-cleanurl.{extension}";
+                return Path.Combine(timestampDir, fileName);
+            }
+            else
+            {
+                // Use timestamp prefix in filename (original behavior)
+                string fileName = $"{timestamp}_{safeFormatName}-cleanurl.{extension}";
+                return Path.Combine(outputDir, fileName);
             }
         }
 
