@@ -64,10 +64,18 @@ namespace ClipDumpRe.Services
                 // Collect metadata for all detected formats
                 await CollectDetectedFormatsMetadataAsync(dataObject, formats, metadata);
 
-                await ProcessClipboardFormatsAsync(dataObject, formats, timestamp, baseOutputDir, appInfo, applicationRule, metadata);
+                int savedCount = await ProcessClipboardFormatsAsync(dataObject, formats, timestamp, baseOutputDir, appInfo, applicationRule, metadata);
 
-                // Save metadata file
-                await SaveMetadataAsync(metadata, timestamp, baseOutputDir);
+                // Only save metadata if we actually saved some formats
+                if (savedCount > 0)
+                {
+                    await SaveMetadataAsync(metadata, timestamp, baseOutputDir);
+                }
+                else
+                {
+                    await _loggingService.LogEventAsync("MetadataSkipped", "Metadata file not created because no formats were saved", 
+                        $"Total detected formats: {metadata.DetectedFormats.Count}");
+                }
             }
             catch (Exception ex)
             {
@@ -175,7 +183,7 @@ namespace ClipDumpRe.Services
             return baseOutputDir;
         }
 
-        private async Task ProcessClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ApplicationRule applicationRule, ClipboardMetadata metadata)
+        private async Task<int> ProcessClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats, string timestamp, string baseOutputDir, ForegroundApplicationInfo appInfo, ApplicationRule applicationRule, ClipboardMetadata metadata)
         {
             await _loggingService.LogEventAsync("ClipboardProcessingStarted", $"Processing {formats.Length} clipboard formats",
                 $"Output directory: {baseOutputDir}, Source app: {appInfo.ProcessName}");
@@ -221,6 +229,8 @@ namespace ClipDumpRe.Services
 
             await _loggingService.LogEventAsync("ClipboardProcessingCompleted", $"Clipboard processing finished",
                 $"Saved: {savedCount}, Skipped: {skippedCount} (Ignored: {ignoredCount}, Duplicates: {duplicateCount}), Total formats: {formats.Length}, Source app: {appInfo.ProcessName}");
+
+            return savedCount;
         }
 
         private async Task<List<string>> DeduplicateClipboardFormatsAsync(System.Windows.IDataObject dataObject, string[] formats)
@@ -470,6 +480,16 @@ namespace ClipDumpRe.Services
         private async Task<bool> ValidateDataSizeAsync(object data, string format, ClipboardFormatRule formatRule, ApplicationRule applicationRule)
         {
             long dataSize = FileUtils.GetDataSize(data);
+            
+            // Check minimum clipboard data size
+            if (dataSize < _settings.MinClipboardDataSizeBytes)
+            {
+                await _loggingService.LogEventAsync("ClipboardFormatSkipped", $"Format skipped due to minimum clipboard data size limit",
+                    $"Format: {format}, Size: {dataSize} bytes, Minimum: {_settings.MinClipboardDataSizeBytes} bytes");
+                Debug.WriteLine($"Skipping format '{format}' - clipboard data size {dataSize} bytes is below minimum limit of {_settings.MinClipboardDataSizeBytes} bytes");
+                return false;
+            }
+
             int maxSizeLimit = (formatRule?.MaxSizeKB ?? applicationRule?.MaxSizeKB ?? _settings.MaxFileSizeKB) * 1024;
 
             if (maxSizeLimit > 0 && dataSize > maxSizeLimit)

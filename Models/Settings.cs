@@ -7,6 +7,7 @@ namespace ClipDumpRe.Models
     {
         public string WorkingDirectory { get; set; } = @"%USERPROFILE%\Documents\Clipboard Dumps";
         public int MaxFileSizeBytes { get; set; } = 8192 * 1024; // 8MB
+        public int MinClipboardDataSizeBytes { get; set; } = 4; // 4 bytes minimum
         public bool StartWithWindows { get; set; } = false;
         public bool UseTimestampSubdirectories { get; set; } = false;
         public List<ClipboardFormatRule> FormatRules { get; set; } = new List<ClipboardFormatRule>
@@ -29,6 +30,14 @@ namespace ClipDumpRe.Models
         {
             get => MaxFileSizeBytes / 1024;
             set => MaxFileSizeBytes = value * 1024;
+        }
+
+        // Property to handle byte conversion for UI
+        [JsonIgnore]
+        public int MinClipboardDataSizeValue
+        {
+            get => MinClipboardDataSizeBytes;
+            set => MinClipboardDataSizeBytes = value;
         }
     }
 }

@@ -123,6 +123,7 @@ public partial class MainWindow : Window
         // Populate UI controls with loaded settings
         WorkingDirectoryTextBox.Text = _settings.WorkingDirectory;
         MaxFileSizeTextBox.Text = _settings.MaxFileSizeKB.ToString();
+        MinClipboardDataSizeTextBox.Text = _settings.MinClipboardDataSizeValue.ToString();
         StartWithWindowsCheckBox.IsChecked = _settings.StartWithWindows;
         UseTimestampSubdirectoriesCheckBox.IsChecked = _settings.UseTimestampSubdirectories;
         FormatDataGrid.ItemsSource = _settings.FormatRules;
@@ -145,6 +146,7 @@ public partial class MainWindow : Window
     {
         WorkingDirectoryTextBox.TextChanged += OnSettingsChanged;
         MaxFileSizeTextBox.TextChanged += OnSettingsChanged;
+        MinClipboardDataSizeTextBox.TextChanged += OnSettingsChanged;
         StartWithWindowsCheckBox.Checked += OnStartWithWindowsChanged;
         StartWithWindowsCheckBox.Unchecked += OnStartWithWindowsChanged;
         UseTimestampSubdirectoriesCheckBox.Checked += OnUseTimestampSubdirectoriesChanged;
@@ -163,6 +165,7 @@ public partial class MainWindow : Window
         var control = sender as System.Windows.Controls.Control;
         var oldWorkingDir = _settings.WorkingDirectory;
         var oldMaxSize = _settings.MaxFileSizeKB;
+        var oldMinSize = _settings.MinClipboardDataSizeValue;
 
         // Update settings from UI controls
         _settings.WorkingDirectory = WorkingDirectoryTextBox.Text;
@@ -172,10 +175,15 @@ public partial class MainWindow : Window
             _settings.MaxFileSizeKB = maxSizeKB;
         }
 
+        if (int.TryParse(MinClipboardDataSizeTextBox.Text, out int minClipboardDataSizeBytes))
+        {
+            _settings.MinClipboardDataSizeValue = minClipboardDataSizeBytes;
+        }
+
         await _configurationService.SaveSettingsAsync(_settings);
 
         _loggingService.LogEvent("SettingsChanged", $"Settings updated via {control?.Name ?? "Unknown"}",
-            $"WorkingDir: {oldWorkingDir} -> {_settings.WorkingDirectory}, MaxSize: {oldMaxSize} -> {_settings.MaxFileSizeKB}");
+            $"WorkingDir: {oldWorkingDir} -> {_settings.WorkingDirectory}, MaxSize: {oldMaxSize} -> {_settings.MaxFileSizeKB}, MinClipboardDataSize: {oldMinSize} -> {_settings.MinClipboardDataSizeValue}");
     }
 
     private async void OnStartWithWindowsChanged(object sender, RoutedEventArgs e)

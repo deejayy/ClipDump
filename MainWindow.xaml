@@ -28,6 +28,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
@@ -72,8 +73,24 @@
                                  VerticalAlignment="Center"/>
                     </Grid>
 
-                    <!-- Start with Windows Row -->
+                    <!-- Min Clipboard Data Size Row -->
                     <Grid Grid.Row="2"
+                          Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Label Grid.Column="0"
+                               Content="Min Clipboard Data Size (bytes):"
+                               VerticalAlignment="Center"
+                               Margin="0,0,10,0"/>
+                        <TextBox Grid.Column="1"
+                                 Name="MinClipboardDataSizeTextBox"
+                                 VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <!-- Start with Windows Row -->
+                    <Grid Grid.Row="3"
                           Margin="10">
                         <CheckBox Name="StartWithWindowsCheckBox"
                                   Content="Start with Windows"
@@ -81,7 +98,7 @@
                     </Grid>
 
                     <!-- Use Timestamp Subdirectories Row -->
-                    <Grid Grid.Row="3"
+                    <Grid Grid.Row="4"
                           Margin="10">
                         <CheckBox Name="UseTimestampSubdirectoriesCheckBox"
                                   Content="Save files in timestamp-based subdirectories (instead of filename prefixes)"
