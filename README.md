@@ -1,8 +1,11 @@
 # ClipDump - A clipboard dumper for Windows built on .NET SDK 9
 
-<img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/ad3bbc7f-19e3-450a-a2ab-61a1c93ae4e1" />
+<img width="786" height="443" alt="image" src="https://github.com/user-attachments/assets/13f6f713-e473-4e4f-b312-f695ecdf2083" />
+
 <img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/5d0a77c4-63b7-49fd-995d-e6feffbf7042" />
+
 <img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/ed4442c7-ca82-4dc9-8cca-bb8320ea6149" />
+
 <img width="790" height="579" alt="image" src="https://github.com/user-attachments/assets/0eb02638-1d22-4bc8-bb2e-2c458eeaf0d1" />
 
 
