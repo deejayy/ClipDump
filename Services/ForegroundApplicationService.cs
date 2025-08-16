@@ -6,7 +6,7 @@ using ClipDumpRe.Models;
 
 namespace ClipDumpRe.Services
 {
-    internal class ForegroundApplicationService
+    public class ForegroundApplicationService
     {
         private readonly LoggingService _loggingService;
 

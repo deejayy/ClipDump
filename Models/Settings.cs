@@ -3,7 +3,7 @@ using ClipDumpRe.Services;
 
 namespace ClipDumpRe.Models
 {
-    internal class Settings
+    public class Settings
     {
         public string WorkingDirectory { get; set; } = @"%USERPROFILE%\Documents\Clipboard Dumps";
         public int MaxFileSizeBytes { get; set; } = 8192 * 1024; // 8MB

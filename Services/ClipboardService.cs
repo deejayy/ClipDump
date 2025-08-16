@@ -11,7 +11,7 @@ using System.Text.Json;
 
 namespace ClipDumpRe.Services
 {
-    internal class ClipboardService
+    public class ClipboardService
     {
         private readonly Settings _settings;
         private readonly LoggingService _loggingService;

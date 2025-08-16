@@ -35,17 +35,8 @@ public partial class MainWindow : Window
     private readonly ClearUrlsService _clearUrlsService;
     private ClipboardService _clipboardService;
     private TrayIconService _trayIconService;
+    private ClipboardMonitoringService _clipboardMonitoringService;
     private Settings _settings;
-    private HwndSource _hwndSource;
-
-    // P/Invoke declarations for clipboard monitoring
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool AddClipboardFormatListener(IntPtr hwnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
-
-    private const int WM_CLIPBOARDUPDATE = 0x031D;
 
     public MainWindow()
     {
@@ -57,6 +48,7 @@ public partial class MainWindow : Window
         _applicationEnumerationService = new ApplicationEnumerationService(_loggingService);
         _startupService = new WindowsStartupService(_loggingService);
         _clearUrlsService = new ClearUrlsService(_loggingService);
+        _clipboardMonitoringService = new ClipboardMonitoringService(_loggingService, LoadSeenFormats);
 
         _loggingService.LogEvent("ApplicationStarted", "MainWindow initialized", "");
         InitializeTrayIcon();
@@ -70,49 +62,9 @@ public partial class MainWindow : Window
     {
         base.OnSourceInitialized(e);
 
-        // Get the window handle
-        _hwndSource = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-        _hwndSource.AddHook(WndProc);
-
-        // Register for clipboard format listener
-        if (AddClipboardFormatListener(new WindowInteropHelper(this).Handle))
-        {
-            _loggingService.LogEvent("ClipboardListenerRegistered", "Successfully registered clipboard format listener", "");
-        }
-        else
-        {
-            _loggingService.LogEvent("ClipboardListenerFailed", "Failed to register clipboard format listener", $"Error: {Marshal.GetLastWin32Error()}");
-        }
-    }
-
-    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
-    {
-        if (msg == WM_CLIPBOARDUPDATE)
-        {
-            _loggingService.LogEvent("ClipboardChanged", "Clipboard content changed", "");
-
-            // Process clipboard content on UI thread to avoid STA issues
-            if (_clipboardService != null)
-            {
-                Dispatcher.BeginInvoke(new Action(async () =>
-                {
-                    try
-                    {
-                        await _clipboardService.DumpClipboardContentAsync();
-                        // Automatically refresh seen formats after clipboard processing
-                        LoadSeenFormats();
-                    }
-                    catch (Exception ex)
-                    {
-                        _loggingService.LogEvent("ClipboardProcessingError", "Error processing clipboard on UI thread", $"Error: {ex.Message}");
-                    }
-                }));
-            }
-
-            handled = true;
-        }
-
-        return IntPtr.Zero;
+        // Initialize clipboard monitoring service
+        var windowHandle = new WindowInteropHelper(this).Handle;
+        _clipboardMonitoringService.Initialize(windowHandle, _clipboardService);
     }
 
     private async void InitializeClearUrlsService()
@@ -519,13 +471,8 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        // Remove clipboard listener
-        if (_hwndSource != null)
-        {
-            RemoveClipboardFormatListener(new WindowInteropHelper(this).Handle);
-            _hwndSource.RemoveHook(WndProc);
-            _loggingService.LogEvent("ClipboardListenerRemoved", "Clipboard format listener removed", "");
-        }
+        // Dispose clipboard monitoring service
+        _clipboardMonitoringService?.Dispose();
 
         // Unsubscribe from events before disposing
         if (_trayIconService != null)

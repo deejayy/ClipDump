@@ -9,7 +9,7 @@ using ClipDumpRe.Models;
 
 namespace ClipDumpRe.Services
 {
-    internal class ClearUrlsService
+    public class ClearUrlsService
     {
         private readonly LoggingService _loggingService;
         private ClearUrlsData _clearUrlsData;

@@ -4,7 +4,7 @@ using ClipDumpRe.Models;
 
 namespace ClipDumpRe.Services
 {
-    internal class FormatCacheService
+    public class FormatCacheService
     {
         private const string CacheFileName = "clipdump-cache.json";
         private readonly string _cacheFilePath;
