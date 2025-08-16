@@ -619,16 +619,23 @@ namespace ClipDumpRe.Services
                 return false;
             }
 
-            int maxSizeLimit = (formatRule?.MaxSizeKB ?? applicationRule?.MaxSizeKB ?? _settings.MaxFileSizeKB) * 1024;
-
-            if (maxSizeLimit > 0 && dataSize > maxSizeLimit)
+            // Determine the applicable size limit (format rule takes precedence, then application rule, then global)
+            int maxSizeKB = formatRule?.MaxSizeKB ?? applicationRule?.MaxSizeKB ?? _settings.MaxFileSizeKB;
+            
+            // Only enforce size limit if it's greater than 0
+            if (maxSizeKB > 0)
             {
-                string limitSource = formatRule != null ? "format rule" :
-                                   applicationRule != null ? "application rule" : "global setting";
-                await _loggingService.LogEventAsync("ClipboardFormatSkipped", $"Format skipped due to size limit ({limitSource})",
-                    $"Format: {format}, Size: {dataSize} bytes, Limit: {maxSizeLimit} bytes");
-                Debug.WriteLine($"Skipping format '{format}' - size {dataSize} bytes exceeds {limitSource} limit of {maxSizeLimit} bytes");
-                return false;
+                long maxSizeBytes = (long)maxSizeKB * 1024;
+                
+                if (dataSize > maxSizeBytes)
+                {
+                    string limitSource = formatRule?.MaxSizeKB > 0 ? "format rule" :
+                                       applicationRule?.MaxSizeKB > 0 ? "application rule" : "global setting";
+                    await _loggingService.LogEventAsync("ClipboardFormatSkipped", $"Format skipped due to size limit ({limitSource})",
+                        $"Format: {format}, Size: {dataSize} bytes, Limit: {maxSizeBytes} bytes ({maxSizeKB} KB)");
+                    Debug.WriteLine($"Skipping format '{format}' - size {dataSize} bytes exceeds {limitSource} limit of {maxSizeBytes} bytes ({maxSizeKB} KB)");
+                    return false;
+                }
             }
 
             return true;
